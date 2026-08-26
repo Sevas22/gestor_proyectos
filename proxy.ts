@@ -10,7 +10,7 @@ import { decryptSession, SESSION_COOKIE_NAME } from '@/lib/session'
 // para no pintar pantallas que el usuario no puede ver. La autorización real
 // está en lib/dal.ts, pegada a los datos.
 
-const PROTECTED_PREFIXES = ['/dashboard', '/projects', '/tasks', '/team', '/settings']
+const PROTECTED_PREFIXES = ['/dashboard', '/projects', '/tasks', '/team', '/roles', '/settings']
 const AUTH_ROUTES = ['/login', '/register']
 
 // /logout y /pendiente no aparecen en ninguna de las dos listas a propósito.

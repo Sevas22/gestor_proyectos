@@ -17,15 +17,6 @@ datasource db {
 // Enums
 // ---------------------------------------------------------------------------
 
-/// Rol dentro de una organización. Determina qué puede hacer cada miembro.
-/// La matriz de permisos vive en lib/permissions.ts.
-enum Role {
-  ADMIN
-  MANAGER
-  DEVELOPER
-  VIEWER
-}
-
 /// Estado de la pertenencia a una organización.
 /// Quien se registra con el código de un equipo entra como PENDING: tiene
 /// cuenta y sesión, pero no ve ni un solo dato hasta que un administrador le
@@ -103,24 +94,56 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   members    Membership[]
+  roles      TeamRole[]
   projects   Project[]
   activities Activity[]
+}
+
+/// Rol definido por cada organización.
+///
+/// Los permisos se guardan como lista de claves de texto (las de
+/// lib/permissions.ts) en vez de como columnas booleanas: añadir un permiso
+/// nuevo al producto no debería exigir una migración de esquema.
+model TeamRole {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @default("")
+  permissions String[]
+  /// Índice de la paleta de roles (lib/format.ts).
+  colorSeed   Int      @default(0)
+  /// Marca el rol administrador que se crea con la organización. No se puede
+  /// borrar ni quedarse sin los permisos de gestión: es el que garantiza que
+  /// siempre haya alguien capaz de arreglar los permisos de los demás.
+  isSystem    Boolean  @default(false)
+  orgId       String
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members   Membership[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId])
 }
 
 /// Une a una persona con una organización y le asigna un rol.
 model Membership {
   id     String           @id @default(cuid())
-  role   Role             @default(DEVELOPER)
   status MembershipStatus @default(PENDING)
   userId String
   orgId  String
+  roleId String
 
   user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Restrict y no Cascade: borrar un rol no debe llevarse por delante a la
+  // gente que lo tiene. Hay que reasignarla primero.
+  role     TeamRole     @relation(fields: [roleId], references: [id], onDelete: Restrict)
   joinedAt DateTime     @default(now())
 
   @@unique([userId, orgId])
   @@index([orgId, status])
+  @@index([roleId])
 }
 
 model Project {

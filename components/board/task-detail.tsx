@@ -3,11 +3,11 @@
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarDays, Pencil, Send, Trash2, User2 } from 'lucide-react'
-import type { Priority, Role, TaskStatus } from '@prisma/client'
+import type { Priority, TaskStatus } from '@prisma/client'
 
 import { createCommentAction } from '@/app/actions/comments'
 import { deleteTaskAction } from '@/app/actions/tasks'
-import { can } from '@/lib/permissions'
+import { can, type Permission } from '@/lib/permissions'
 import { EMPTY_STATE } from '@/lib/validation'
 import {
   PRIORITY_LABELS,
@@ -51,13 +51,13 @@ export type TaskDetailData = {
 /// volver a la URL del proyecto.
 export function TaskDetail({
   task,
-  role,
+  permissions,
   viewerId,
   members,
   projects,
 }: {
   task: TaskDetailData
-  role: Role
+  permissions: Permission[]
   viewerId: string
   members: { id: string; name: string; avatarSeed: number }[]
   projects: { id: string; name: string; key: string }[]
@@ -96,9 +96,9 @@ export function TaskDetail({
     dueDate: task.dueDate,
   }
 
-  const canEdit = can(role, 'task:update')
-  const canDelete = can(role, 'task:delete')
-  const canComment = can(role, 'comment:create')
+  const canEdit = can(permissions, 'task:update')
+  const canDelete = can(permissions, 'task:delete')
+  const canComment = can(permissions, 'comment:create')
   const late = isOverdue(task.dueDate) && task.status !== 'DONE'
 
   return (

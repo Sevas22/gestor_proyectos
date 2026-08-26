@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Activity, FolderKanban, LayoutDashboard, ListTodo, Settings2, Users } from 'lucide-react'
+import { Activity, FolderKanban, LayoutDashboard, ListTodo, Settings2, ShieldCheck, Users } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -13,7 +13,10 @@ const NAV = [
   { href: '/team', label: 'Equipo', icon: Users },
 ] as const
 
-const ADMIN_NAV = [{ href: '/settings', label: 'Ajustes', icon: Settings2 }] as const
+const ADMIN_NAV = [
+  { href: '/roles', label: 'Roles', icon: ShieldCheck },
+  { href: '/settings', label: 'Ajustes', icon: Settings2 },
+] as const
 
 export function SidebarNav({
   counts,

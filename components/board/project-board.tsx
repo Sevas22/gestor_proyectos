@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Role, TaskStatus } from '@prisma/client'
+import type { TaskStatus } from '@prisma/client'
 
+import type { Permission } from '@/lib/permissions'
 import { TaskDialog, type TaskFormValues } from '@/components/board/task-dialog'
 import { KanbanBoard, type BoardTask } from '@/components/board/kanban-board'
 
@@ -18,13 +19,13 @@ export type ProjectOption = { id: string; name: string; key: string; colorSeed: 
 /// el panel como espera cualquiera.
 export function ProjectBoard({
   tasks,
-  role,
+  permissions,
   members,
   projects,
   projectId,
 }: {
   tasks: BoardTask[]
-  role: Role
+  permissions: Permission[]
   members: MemberOption[]
   projects: ProjectOption[]
   projectId: string
@@ -45,7 +46,7 @@ export function ProjectBoard({
 
   return (
     <>
-      <KanbanBoard tasks={tasks} role={role} onOpenTask={openTask} onCreateTask={setCreating} />
+      <KanbanBoard tasks={tasks} permissions={permissions} onOpenTask={openTask} onCreateTask={setCreating} />
 
       <TaskDialog
         open={creating !== null}

@@ -23,7 +23,7 @@ export const metadata: Metadata = { title: 'Proyectos' }
 export default async function ProjectsPage() {
   const viewer = await requireViewer()
   const projects = await getProjects(viewer.orgId)
-  const canCreate = can(viewer.role, 'project:create')
+  const canCreate = can(viewer.permissions, 'project:create')
 
   return (
     <div className="mx-auto max-w-[1400px] p-5 sm:p-8">

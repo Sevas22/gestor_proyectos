@@ -1,5 +1,6 @@
-import { Priority, ProjectStatus, Role, TaskStatus } from '@prisma/client'
+import { Priority, ProjectStatus, TaskStatus } from '@prisma/client'
 import { parseDateOnly } from '@/lib/format'
+import { ALL_PERMISSIONS } from '@/lib/permissions'
 import { z } from 'zod'
 
 // Los formularios se validan aquí y también en las server actions. La validación
@@ -112,12 +113,27 @@ export const commentSchema = z.object({
 
 export const memberInviteSchema = z.object({
   email: trimmed(160).toLowerCase().pipe(z.email('Ese correo no parece válido.')),
-  role: z.enum(Role).default('DEVELOPER'),
+  roleId: z.string().min(1, 'Elige un rol.'),
 })
 
 export const memberRoleSchema = z.object({
   membershipId: z.string().min(1),
-  role: z.enum(Role),
+  roleId: z.string().min(1, 'Elige un rol.'),
+})
+
+export const roleSchema = z.object({
+  name: trimmed(40).min(2, 'El rol necesita un nombre.'),
+  description: trimmed(200).default(''),
+  colorSeed: z.coerce.number().int().min(0).max(5).default(0),
+  // Se filtra contra el catálogo en vez de rechazar: el formulario puede mandar
+  // claves obsoletas si alguien lo dejó abierto durante un despliegue, y eso no
+  // debería impedir guardar el resto.
+  permissions: z
+    .array(z.string())
+    .default([])
+    .transform((values) =>
+      ALL_PERMISSIONS.filter((permission) => values.includes(permission)),
+    ),
 })
 
 export const orgSchema = z.object({

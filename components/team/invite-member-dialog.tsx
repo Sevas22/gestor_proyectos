@@ -3,24 +3,26 @@
 import { useActionState, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserPlus } from 'lucide-react'
-import type { Role } from '@prisma/client'
 
 import { inviteMemberAction } from '@/app/actions/members'
-import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER } from '@/lib/permissions'
 import { EMPTY_STATE } from '@/lib/validation'
 import { Dialog } from '@/components/ui/dialog'
-import { Field, FormMessage, Input, Select } from '@/components/ui/primitives'
+import { Field, FormMessage, Input } from '@/components/ui/primitives'
 import { SubmitButton } from '@/components/ui/submit-button'
+import { RoleSelect, type RoleOption } from '@/components/team/role-select'
 
-export function InviteMemberDialog({ viewerRole }: { viewerRole: Role }) {
+export function InviteMemberDialog({ roles }: { roles: RoleOption[] }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [state, formAction] = useActionState(inviteMemberAction, EMPTY_STATE)
-  const [role, setRole] = useState<Role>('DEVELOPER')
+  const [roleId, setRoleId] = useState(roles[0]?.id ?? '')
 
-  // Solo un administrador puede nombrar a otro. El servidor lo vuelve a
-  // comprobar; esconder la opción aquí es cortesía, no seguridad.
-  const availableRoles = ROLE_ORDER.filter((value) => value !== 'ADMIN' || viewerRole === 'ADMIN')
+  const seleccionado = roles.find((role) => role.id === roleId)
+
+  function close() {
+    setOpen(false)
+    if (state.ok) router.refresh()
+  }
 
   return (
     <>
@@ -35,10 +37,7 @@ export function InviteMemberDialog({ viewerRole }: { viewerRole: Role }) {
 
       <Dialog
         open={open}
-        onClose={() => {
-          setOpen(false)
-          if (state.ok) router.refresh()
-        }}
+        onClose={close}
         title="Añadir al equipo"
         description="Si el correo ya tiene cuenta, se añade directamente. Si no, se crea una con contraseña temporal."
       >
@@ -53,19 +52,19 @@ export function InviteMemberDialog({ viewerRole }: { viewerRole: Role }) {
             />
           </Field>
 
-          <Field label="Rol" htmlFor="invite-role" hint={ROLE_DESCRIPTIONS[role]}>
-            <Select
+          <Field
+            label="Rol"
+            htmlFor="invite-role"
+            hint={seleccionado?.description}
+            error={state.errors?.roleId}
+          >
+            <RoleSelect
               id="invite-role"
-              name="role"
-              value={role}
-              onChange={(event) => setRole(event.target.value as Role)}
-            >
-              {availableRoles.map((value) => (
-                <option key={value} value={value}>
-                  {ROLE_LABELS[value]}
-                </option>
-              ))}
-            </Select>
+              name="roleId"
+              roles={roles}
+              value={roleId}
+              onChange={(event) => setRoleId(event.target.value)}
+            />
           </Field>
 
           {state.message && <FormMessage ok={state.ok}>{state.message}</FormMessage>}
@@ -73,15 +72,14 @@ export function InviteMemberDialog({ viewerRole }: { viewerRole: Role }) {
           <div className="mt-2 flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => {
-                setOpen(false)
-                if (state.ok) router.refresh()
-              }}
+              onClick={close}
               className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent"
             >
               {state.ok ? 'Cerrar' : 'Cancelar'}
             </button>
-            <SubmitButton pendingLabel="Añadiendo…">Añadir</SubmitButton>
+            <SubmitButton pendingLabel="Añadiendo…" disabled={roles.length === 0}>
+              Añadir
+            </SubmitButton>
           </div>
         </form>
       </Dialog>

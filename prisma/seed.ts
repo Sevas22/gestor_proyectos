@@ -1,4 +1,5 @@
-import { PrismaClient, Priority, Role, TaskStatus } from '@prisma/client'
+import { PrismaClient, Priority, TaskStatus } from '@prisma/client'
+import { DEFAULT_ROLES } from '../lib/permissions'
 import bcrypt from 'bcryptjs'
 
 // Datos de demostración: una organización con cinco personas, cuatro proyectos y
@@ -12,11 +13,11 @@ const prisma = new PrismaClient()
 const DEMO_PASSWORD = 'demo12345'
 
 const PEOPLE = [
-  { email: 'ana@nucleus.test', name: 'Ana Martínez', role: Role.ADMIN, avatarSeed: 0 },
-  { email: 'lucia@nucleus.test', name: 'Lucía Ramírez', role: Role.MANAGER, avatarSeed: 1 },
-  { email: 'carlos@nucleus.test', name: 'Carlos Gómez', role: Role.DEVELOPER, avatarSeed: 2 },
-  { email: 'nadia@nucleus.test', name: 'Nadia Suárez', role: Role.DEVELOPER, avatarSeed: 3 },
-  { email: 'tomas@nucleus.test', name: 'Tomás Vega', role: Role.VIEWER, avatarSeed: 4 },
+  { email: 'ana@nucleus.test', name: 'Ana Martínez', roleName: 'Administrador', avatarSeed: 0 },
+  { email: 'lucia@nucleus.test', name: 'Lucía Ramírez', roleName: 'Gestor de proyecto', avatarSeed: 1 },
+  { email: 'carlos@nucleus.test', name: 'Carlos Gómez', roleName: 'Desarrollador', avatarSeed: 2 },
+  { email: 'nadia@nucleus.test', name: 'Nadia Suárez', roleName: 'Desarrollador', avatarSeed: 3 },
+  { email: 'tomas@nucleus.test', name: 'Tomás Vega', roleName: 'Observador', avatarSeed: 4 },
 ]
 
 const PROJECTS = [
@@ -105,6 +106,33 @@ async function main() {
     create: { name: 'Acme Cloud', slug: 'acme-cloud' },
   })
 
+  // Los roles por defecto, y un quinto propio para enseñar que se pueden crear.
+  const rolesDemo = [
+    ...DEFAULT_ROLES,
+    {
+      name: 'QA',
+      description: 'Revisa y mueve tareas en el tablero, pero no crea ni borra proyectos.',
+      permissions: ['task:update', 'task:move', 'comment:create'],
+      colorSeed: 4,
+      isSystem: false,
+    },
+  ]
+
+  const roles = new Map<string, string>()
+  for (const role of rolesDemo) {
+    const created = await prisma.teamRole.upsert({
+      where: { orgId_name: { orgId: org.id, name: role.name } },
+      update: {
+        description: role.description,
+        permissions: role.permissions,
+        colorSeed: role.colorSeed,
+      },
+      create: { ...role, orgId: org.id },
+      select: { id: true, name: true },
+    })
+    roles.set(created.name, created.id)
+  }
+
   const users = await Promise.all(
     PEOPLE.map(async (person) => {
       const user = await prisma.user.upsert({
@@ -119,10 +147,15 @@ async function main() {
       })
       await prisma.membership.upsert({
         where: { userId_orgId: { userId: user.id, orgId: org.id } },
-        update: { role: person.role, status: 'ACTIVE' },
+        update: { roleId: roles.get(person.roleName)!, status: 'ACTIVE' },
         // status explícito: el valor por defecto del esquema es PENDING, así que
         // omitirlo dejaría a todo el equipo de demostración esperando aprobación.
-        create: { userId: user.id, orgId: org.id, role: person.role, status: 'ACTIVE' },
+        create: {
+          userId: user.id,
+          orgId: org.id,
+          roleId: roles.get(person.roleName)!,
+          status: 'ACTIVE',
+        },
       })
       return user
     }),
@@ -205,8 +238,13 @@ async function main() {
   })
   await prisma.membership.upsert({
     where: { userId_orgId: { userId: solicitante.id, orgId: org.id } },
-    update: { status: 'PENDING', role: 'DEVELOPER' },
-    create: { userId: solicitante.id, orgId: org.id, role: 'DEVELOPER', status: 'PENDING' },
+    update: { status: 'PENDING', roleId: roles.get('Desarrollador')! },
+    create: {
+      userId: solicitante.id,
+      orgId: org.id,
+      roleId: roles.get('Desarrollador')!,
+      status: 'PENDING',
+    },
   })
 
   const taskCount = await prisma.task.count({ where: { project: { orgId: org.id } } })
@@ -221,7 +259,7 @@ Listo.
 
 Entra con cualquiera de estas cuentas — la contraseña es la misma para todas:
 
-  ${PEOPLE.map((p) => `${p.email.padEnd(24)} ${p.role}`).join('\n  ')}
+  ${PEOPLE.map((p) => `${p.email.padEnd(24)} ${p.roleName}`).join('\n  ')}
 
   Contraseña     ${DEMO_PASSWORD}
 

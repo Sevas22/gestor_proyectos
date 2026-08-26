@@ -2,10 +2,10 @@
 
 import { useOptimistic, useState, useTransition } from 'react'
 import { MessageSquareText, Plus } from 'lucide-react'
-import type { Priority, Role, TaskStatus } from '@prisma/client'
+import type { Priority, TaskStatus } from '@prisma/client'
 
 import { moveTaskAction } from '@/app/actions/tasks'
-import { can } from '@/lib/permissions'
+import { can, type Permission } from '@/lib/permissions'
 import {
   PRIORITY_LABELS,
   PRIORITY_STYLES,
@@ -40,12 +40,12 @@ export type BoardTask = {
 /// la tarjeta vuelve sola a su sitio.
 export function KanbanBoard({
   tasks,
-  role,
+  permissions,
   onOpenTask,
   onCreateTask,
 }: {
   tasks: BoardTask[]
-  role: Role
+  permissions: Permission[]
   onOpenTask: (taskId: string) => void
   onCreateTask: (status: TaskStatus) => void
 }) {
@@ -71,8 +71,8 @@ export function KanbanBoard({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [overColumn, setOverColumn] = useState<TaskStatus | null>(null)
 
-  const canMove = can(role, 'task:move')
-  const canCreate = can(role, 'task:create')
+  const canMove = can(permissions, 'task:move')
+  const canCreate = can(permissions, 'task:create')
 
   function move(taskId: string, status: TaskStatus, beforeTaskId?: string | null) {
     const task = optimisticTasks.find((t) => t.id === taskId)

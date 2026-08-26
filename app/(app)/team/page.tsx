@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import { Clock3, ShieldCheck, Users } from 'lucide-react'
 
 import { requireViewer } from '@/lib/dal'
-import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, can } from '@/lib/permissions'
-import { getOrgMembers, getPendingMembers, getWorkload } from '@/lib/queries'
-import { ROLE_STYLES, formatDate, plural } from '@/lib/format'
+import { can, permissionsBeyond, summarizePermissions } from '@/lib/permissions'
+import { getOrgMembers, getOrgRoles, getPendingMembers, getWorkload } from '@/lib/queries'
+import { formatDate, plural, roleColor } from '@/lib/format'
 import { PageHeader } from '@/components/shell/app-shell'
 import { Avatar, Badge, Card, CardHeader, EmptyState, Progress } from '@/components/ui/primitives'
 import { InviteMemberDialog } from '@/components/team/invite-member-dialog'
@@ -16,16 +16,23 @@ export const metadata: Metadata = { title: 'Equipo' }
 
 export default async function TeamPage() {
   const viewer = await requireViewer()
-  const canApprove = can(viewer.role, 'member:approve')
-  const [members, workload, pending] = await Promise.all([
+  const canApprove = can(viewer.permissions, 'member:approve')
+  const [members, workload, pending, roles] = await Promise.all([
     getOrgMembers(viewer.orgId),
     getWorkload(viewer.orgId),
     // Solo se consultan las solicitudes si quien mira puede resolverlas.
     canApprove ? getPendingMembers(viewer.orgId) : Promise.resolve([]),
+    getOrgRoles(viewer.orgId),
   ])
 
-  const canInvite = can(viewer.role, 'member:invite')
-  const canManage = can(viewer.role, 'member:update_role')
+  // Solo se ofrecen los roles que quien mira podría conceder: repartir permisos
+  // que uno no tiene sería escalar privilegios, y el servidor lo rechazaría.
+  const asignables = roles
+    .filter((role) => permissionsBeyond(role.permissions, viewer.permissions).length === 0)
+    .map((role) => ({ id: role.id, name: role.name, colorSeed: role.colorSeed, description: role.description }))
+
+  const canInvite = can(viewer.permissions, 'member:invite')
+  const canManage = can(viewer.permissions, 'member:update_role')
   const workloadById = new Map(workload.map((entry) => [entry.id, entry]))
   const maxOpen = Math.max(...workload.map((entry) => entry.open), 1)
 
@@ -40,7 +47,7 @@ export default async function TeamPage() {
         }
         title="Equipo"
         description="Quién está en la organización, con qué rol y cuánto trabajo tiene abierto."
-        action={canInvite ? <InviteMemberDialog viewerRole={viewer.role} /> : undefined}
+        action={canInvite ? <InviteMemberDialog roles={asignables} /> : undefined}
       />
 
       {canApprove && (
@@ -69,7 +76,7 @@ export default async function TeamPage() {
                 description="Cuando alguien se registre con el código del equipo, su solicitud aparecerá aquí para que le asignes un rol."
               />
             ) : (
-              <PendingRequests requests={pending} canPromoteToAdmin={viewer.role === 'ADMIN'} />
+              <PendingRequests requests={pending} roles={asignables} />
             )}
           </Card>
 
@@ -93,6 +100,7 @@ export default async function TeamPage() {
                   joinedAt: formatDate(member.joinedAt),
                   user: member.user,
                 }}
+                roles={asignables}
                 workload={workloadById.get(member.user.id) ?? { open: 0, done: 0, total: 0 }}
                 isSelf={member.user.id === viewer.id}
                 canManage={canManage}
@@ -105,22 +113,22 @@ export default async function TeamPage() {
         <Card>
           <CardHeader
             title="Roles y permisos"
-            subtitle="Qué puede hacer cada rol"
+            subtitle={`${plural(roles.length, 'rol', 'roles')} en este equipo`}
             action={<ShieldCheck className="size-4 text-muted-foreground" />}
           />
           <ul className="divide-y divide-border">
-            {ROLE_ORDER.map((role) => {
-              const count = members.filter((member) => member.role === role).length
+            {roles.map((role) => {
+              const color = roleColor(role.colorSeed)
               return (
-                <li key={role} className="px-5 py-4">
+                <li key={role.id} className="px-5 py-4">
                   <div className="flex items-center justify-between gap-2">
-                    <Badge className={ROLE_STYLES[role]}>{ROLE_LABELS[role]}</Badge>
+                    <Badge className={color.chip}>{role.name}</Badge>
                     <span className="tabular text-[11px] text-muted-foreground">
-                      {plural(count, 'persona')}
+                      {plural(role._count.members, 'persona')}
                     </span>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    {ROLE_DESCRIPTIONS[role]}
+                    {role.description || summarizePermissions(role.permissions)}
                   </p>
                 </li>
               )

@@ -3,14 +3,13 @@
 import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Clock3, X } from 'lucide-react'
-import type { Role } from '@prisma/client'
 
 import { approveMemberAction, rejectMemberAction } from '@/app/actions/members'
-import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER } from '@/lib/permissions'
 import { EMPTY_STATE } from '@/lib/validation'
 import { relativeTime } from '@/lib/format'
-import { Avatar, FormMessage, Select } from '@/components/ui/primitives'
+import { Avatar, FormMessage } from '@/components/ui/primitives'
 import { SubmitButton } from '@/components/ui/submit-button'
+import { RoleSelect, type RoleOption } from '@/components/team/role-select'
 
 export type PendingRequest = {
   id: string
@@ -21,9 +20,9 @@ export type PendingRequest = {
 /// Una solicitud. Aprobar exige elegir rol en el mismo gesto: si se pudiera
 /// aprobar «y ya luego le pongo el rol», habría gente dentro del equipo sin que
 /// nadie hubiera decidido qué puede tocar.
-function RequestRow({ request, canPromoteToAdmin }: { request: PendingRequest; canPromoteToAdmin: boolean }) {
+function RequestRow({ request, roles }: { request: PendingRequest; roles: RoleOption[] }) {
   const router = useRouter()
-  const [role, setRole] = useState<Role>('DEVELOPER')
+  const [roleId, setRoleId] = useState(roles[0]?.id ?? '')
   const [approveState, approve] = useActionState(approveMemberAction, EMPTY_STATE)
   const [rejectState, reject] = useActionState(rejectMemberAction, EMPTY_STATE)
 
@@ -32,7 +31,7 @@ function RequestRow({ request, canPromoteToAdmin }: { request: PendingRequest; c
     if (resolved) router.refresh()
   }, [resolved, router])
 
-  const roles = ROLE_ORDER.filter((value) => value !== 'ADMIN' || canPromoteToAdmin)
+  const seleccionado = roles.find((role) => role.id === roleId)
   const error = (!approveState.ok && approveState.message) || (!rejectState.ok && rejectState.message)
 
   return (
@@ -50,23 +49,22 @@ function RequestRow({ request, canPromoteToAdmin }: { request: PendingRequest; c
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={role}
-            onChange={(event) => setRole(event.target.value as Role)}
+          <RoleSelect
+            roles={roles}
+            value={roleId}
+            onChange={(event) => setRoleId(event.target.value)}
             aria-label={`Rol para ${request.user.name}`}
             className="w-auto py-1.5 text-xs"
-          >
-            {roles.map((value) => (
-              <option key={value} value={value}>
-                {ROLE_LABELS[value]}
-              </option>
-            ))}
-          </Select>
+          />
 
           <form action={approve}>
             <input type="hidden" name="membershipId" value={request.id} />
-            <input type="hidden" name="role" value={role} />
-            <SubmitButton className="px-3 py-1.5 text-xs" pendingLabel="Aprobando…">
+            <input type="hidden" name="roleId" value={roleId} />
+            <SubmitButton
+              className="px-3 py-1.5 text-xs"
+              pendingLabel="Aprobando…"
+              disabled={roles.length === 0}
+            >
               <Check className="size-3.5" />
               Aprobar
             </SubmitButton>
@@ -86,7 +84,9 @@ function RequestRow({ request, canPromoteToAdmin }: { request: PendingRequest; c
         </div>
       </div>
 
-      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{ROLE_DESCRIPTIONS[role]}</p>
+      {seleccionado?.description && (
+        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{seleccionado.description}</p>
+      )}
 
       {error && (
         <div className="mt-3">
@@ -99,15 +99,15 @@ function RequestRow({ request, canPromoteToAdmin }: { request: PendingRequest; c
 
 export function PendingRequests({
   requests,
-  canPromoteToAdmin,
+  roles,
 }: {
   requests: PendingRequest[]
-  canPromoteToAdmin: boolean
+  roles: RoleOption[]
 }) {
   return (
     <ul className="divide-y divide-border">
       {requests.map((request) => (
-        <RequestRow key={request.id} request={request} canPromoteToAdmin={canPromoteToAdmin} />
+        <RequestRow key={request.id} request={request} roles={roles} />
       ))}
     </ul>
   )

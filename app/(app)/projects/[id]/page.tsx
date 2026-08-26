@@ -114,7 +114,7 @@ export default async function ProjectPage({ params, searchParams }: Props) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {can(viewer.role, 'project:update') && (
+          {can(viewer.permissions, 'project:update') && (
             <ProjectDialog
               trigger="Editar"
               project={{
@@ -128,7 +128,7 @@ export default async function ProjectPage({ params, searchParams }: Props) {
               }}
             />
           )}
-          {can(viewer.role, 'project:delete') && (
+          {can(viewer.permissions, 'project:delete') && (
             <DeleteProjectButton projectId={project.id} projectName={project.name} />
           )}
         </div>
@@ -146,7 +146,7 @@ export default async function ProjectPage({ params, searchParams }: Props) {
 
       <ProjectBoard
         tasks={tasks}
-        role={viewer.role}
+        permissions={viewer.permissions}
         members={memberOptions}
         projects={projects}
         projectId={project.id}
@@ -155,7 +155,7 @@ export default async function ProjectPage({ params, searchParams }: Props) {
       {taskDetail && (
         <TaskDetail
           task={taskDetail}
-          role={viewer.role}
+          permissions={viewer.permissions}
           viewerId={viewer.id}
           members={memberOptions}
           projects={projects}

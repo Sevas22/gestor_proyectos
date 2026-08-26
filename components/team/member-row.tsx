@@ -3,18 +3,18 @@
 import { useActionState, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
-import type { Role } from '@prisma/client'
 
 import { removeMemberAction, updateMemberRoleAction } from '@/app/actions/members'
-import { ROLE_LABELS, ROLE_ORDER } from '@/lib/permissions'
-import { ROLE_STYLES, plural } from '@/lib/format'
+import { plural, roleColor } from '@/lib/format'
 import { EMPTY_STATE } from '@/lib/validation'
-import { Avatar, Badge, FormMessage, Progress, Select } from '@/components/ui/primitives'
+import { Avatar, Badge, FormMessage, Progress } from '@/components/ui/primitives'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { Dialog } from '@/components/ui/dialog'
+import { RoleSelect, type RoleOption } from '@/components/team/role-select'
 
 export function MemberRow({
   membership,
+  roles,
   workload,
   isSelf,
   canManage,
@@ -22,10 +22,11 @@ export function MemberRow({
 }: {
   membership: {
     id: string
-    role: Role
+    role: { id: string; name: string; colorSeed: number }
     joinedAt: string
     user: { id: string; name: string; email: string; avatarSeed: number }
   }
+  roles: RoleOption[]
   workload: { open: number; done: number; total: number }
   isSelf: boolean
   canManage: boolean
@@ -35,6 +36,13 @@ export function MemberRow({
   const [roleState, roleAction] = useActionState(updateMemberRoleAction, EMPTY_STATE)
   const [removeState, removeAction] = useActionState(removeMemberAction, EMPTY_STATE)
   const [confirmOpen, setConfirmOpen] = useState(false)
+
+  // El rol actual puede no estar entre los asignables: quien mira no tiene sus
+  // permisos, así que no podría concederlo. Se añade solo para que el
+  // desplegable no muestre a esta persona con un rol que no es el suyo.
+  const opciones = roles.some((role) => role.id === membership.role.id)
+    ? roles
+    : [{ ...membership.role, description: '' }, ...roles]
 
   return (
     <li className="px-5 py-4">
@@ -47,7 +55,9 @@ export function MemberRow({
               {membership.user.name}
               {isSelf && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(tú)</span>}
             </p>
-            <Badge className={ROLE_STYLES[membership.role]}>{ROLE_LABELS[membership.role]}</Badge>
+            <Badge className={roleColor(membership.role.colorSeed).chip}>
+              {membership.role.name}
+            </Badge>
           </div>
           <p className="truncate text-xs text-muted-foreground">{membership.user.email}</p>
           <div className="mt-2 flex items-center gap-2">
@@ -62,21 +72,16 @@ export function MemberRow({
           <div className="flex items-center gap-2">
             <form action={roleAction}>
               <input type="hidden" name="membershipId" value={membership.id} />
-              <Select
-                name="role"
-                defaultValue={membership.role}
+              <RoleSelect
+                name="roleId"
+                roles={opciones}
+                defaultValue={membership.role.id}
                 aria-label={`Rol de ${membership.user.name}`}
                 className="w-auto py-1.5 text-xs"
                 // Cambiar el desplegable envía el formulario: un botón
                 // "Guardar" por fila sería ruido en una lista larga.
                 onChange={(event) => event.currentTarget.form?.requestSubmit()}
-              >
-                {ROLE_ORDER.map((role) => (
-                  <option key={role} value={role}>
-                    {ROLE_LABELS[role]}
-                  </option>
-                ))}
-              </Select>
+              />
             </form>
 
             {!isSelf && (

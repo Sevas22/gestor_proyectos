@@ -1,4 +1,4 @@
-import { Priority, ProjectStatus, Role, TaskStatus } from '@prisma/client'
+import { Priority, ProjectStatus, TaskStatus } from '@prisma/client'
 
 // Etiquetas y colores. Vive aparte de los componentes para que una tarea se vea
 // igual en el tablero, en la tabla y en el feed de actividad.
@@ -69,11 +69,19 @@ export const PROJECT_STATUS_STYLES: Record<ProjectStatus, string> = {
   ARCHIVED: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
 }
 
-export const ROLE_STYLES: Record<Role, string> = {
-  ADMIN: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
-  MANAGER: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
-  DEVELOPER: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
-  VIEWER: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+/// Paleta de roles. El índice lo guarda TeamRole.colorSeed, así que un rol
+/// conserva su color en todas las pantallas aunque le cambien el nombre.
+const ROLE_COLORS = [
+  { chip: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300', dot: 'bg-violet-500' },
+  { chip: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300', dot: 'bg-sky-500' },
+  { chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300', dot: 'bg-emerald-500' },
+  { chip: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400', dot: 'bg-slate-400' },
+  { chip: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300', dot: 'bg-orange-500' },
+  { chip: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300', dot: 'bg-rose-500' },
+]
+
+export function roleColor(seed: number) {
+  return ROLE_COLORS[Math.abs(seed) % ROLE_COLORS.length]
 }
 
 /// Paleta de avatares. El índice se guarda en User.avatarSeed para que el color

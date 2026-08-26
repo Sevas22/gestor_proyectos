@@ -34,10 +34,10 @@ export type TaskCard = Awaited<ReturnType<typeof getProjectTasks>>[number]
 export const getOrgMembers = cache(async (orgId: string) => {
   return prisma.membership.findMany({
     where: { orgId, status: 'ACTIVE' },
-    orderBy: [{ role: 'asc' }, { user: { name: 'asc' } }],
+    orderBy: [{ role: { colorSeed: 'asc' } }, { user: { name: 'asc' } }],
     select: {
       id: true,
-      role: true,
+      role: { select: { id: true, name: true, colorSeed: true, permissions: true } },
       joinedAt: true,
       user: { select: { id: true, name: true, email: true, avatarSeed: true } },
     },
@@ -52,9 +52,28 @@ export const getPendingMembers = cache(async (orgId: string) => {
     orderBy: { joinedAt: 'asc' },
     select: {
       id: true,
-      role: true,
+      role: { select: { id: true, name: true, colorSeed: true, permissions: true } },
       joinedAt: true,
       user: { select: { id: true, name: true, email: true, avatarSeed: true } },
+    },
+  })
+})
+
+/// Roles de la organización, con el recuento de miembros activos que los
+/// llevan. El recuento es lo que decide si un rol se puede borrar.
+export const getOrgRoles = cache(async (orgId: string) => {
+  return prisma.teamRole.findMany({
+    where: { orgId },
+    orderBy: [{ colorSeed: 'asc' }, { name: 'asc' }],
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      permissions: true,
+      colorSeed: true,
+      isSystem: true,
+      createdAt: true,
+      _count: { select: { members: { where: { status: 'ACTIVE' } } } },
     },
   })
 })

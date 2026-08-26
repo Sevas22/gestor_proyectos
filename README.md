@@ -92,22 +92,42 @@ botón de crear ni podrá arrastrar tarjetas.
   sola a su sitio.
 - **Tareas.** Título, descripción, responsable, prioridad, fecha límite y
   comentarios.
-- **Equipo y roles.** Cuatro roles con permisos que el servidor aplica de verdad.
+- **Roles propios.** Cada equipo crea los suyos con el nombre que quiera y marca
+  sus permisos uno a uno. El servidor los aplica de verdad.
 - **Actividad.** Cada cambio deja un registro con quién, qué y cuándo.
 
 ## Roles
 
-| Rol | Puede |
-|---|---|
-| Administrador | Todo: aprueba solicitudes, asigna roles, gestiona miembros y ajustes |
-| Gestor de proyecto | Crear y borrar proyectos y tareas, dar de alta miembros |
-| Desarrollador | Crear y editar tareas, moverlas en el tablero, comentar |
-| Observador | Solo lectura |
+**Los roles los define cada equipo.** No hay una lista cerrada en el código: un
+rol es una fila con nombre, color y una lista de permisos, y se crea desde
+`/roles` marcando casillas. Toda organización nace con cuatro —Administrador,
+Gestor de proyecto, Desarrollador y Observador— que son un punto de partida
+editable, no una imposición.
 
-Aprobar solicitudes y cambiar roles son exclusivos del **Administrador**. Un
-gestor puede dar de alta a alguien, pero no repartir el acceso de quien llega
-por su cuenta: decidir quién entra y con qué permisos es una sola decisión y
-tiene un solo dueño.
+Los 16 permisos están agrupados en el catálogo de
+[`lib/permissions.ts`](lib/permissions.ts): proyectos, tareas, comentarios,
+equipo y administración. Añadir uno nuevo al producto es añadir una entrada a
+ese catálogo — aparece solo en el formulario y no necesita migrar el esquema,
+porque los permisos se guardan como lista de texto y no como columnas.
+
+### Las tres reglas que impiden romperlo
+
+Repartir permisos es justo donde una aplicación se pega un tiro en el pie, así
+que hay tres salvaguardas, todas en el servidor:
+
+1. **Nadie reparte lo que no tiene.** Si tu rol no incluye «Eliminar proyectos»,
+   no puedes crear un rol que lo incluya ni asignarle a nadie uno que lo tenga.
+   Sin esta regla, «Gestionar roles» sería en la práctica «todos los permisos».
+2. **Siempre queda quien pueda arreglarlo.** No se puede dejar la organización
+   sin ninguna persona activa que conserve «Gestionar roles» y «Cambiar el rol de
+   otros» a la vez. Se comprueba simulando cómo quedaría el reparto antes de
+   guardar.
+3. **El rol administrador no se puede desarmar.** El que se crea con la
+   organización está marcado como de sistema: se le puede cambiar el nombre y
+   afinar permisos, pero no borrarlo ni quitarle los dos anteriores.
+
+Además, un rol que tiene gente asignada no se puede eliminar — hay que
+reasignarla primero.
 
 ### El código del equipo
 
@@ -133,8 +153,8 @@ una cookie con **firma correcta** cuya fila ya no existe (a alguien lo sacaron
 del equipo, se reinició la base) haría que el proxy la diera por buena y mandara
 al panel, mientras la capa de datos manda a la pantalla de acceso — un bucle
 infinito de redirecciones del que el usuario no puede salir ni siquiera para
-volver a entrar. Por eso `resolveViewer` distingue **tres** desenlaces y no dos:
-sin cookie, cookie huérfana, y sesión buena. La huérfana se manda a
+volver a entrar. Por eso `resolveViewer` distingue **cuatro** desenlaces y no dos:
+sin cookie, cookie huérfana, pendiente de aprobación, y sesión buena. La huérfana se manda a
 [`/logout`](app/logout/route.ts), un route handler que sí puede borrarla — un
 componente de servidor no puede escribir cookies.
 
@@ -173,6 +193,12 @@ Neon de producción (no solo compilando):
 - **Cookie huérfana:** con una sesión firmada correctamente pero cuyo usuario ya
   no existe, la aplicación redirige dos veces, borra la cookie y explica por qué.
   Antes de arreglarlo eran redirecciones infinitas.
+- **Roles propios:** creado un rol desde la interfaz con permisos concretos y
+  comprobado que se guardan exactamente esos. Al intentar quitarle al rol
+  administrador los permisos de gestión, el servidor lo rechaza y la base queda
+  intacta. Un Gestor de proyecto ve la pantalla de roles en solo lectura, y al
+  dar de alta a alguien solo se le ofrecen los roles cuyos permisos él mismo
+  tiene: ni Administrador ni ninguno con permisos que le falten.
 - **Sobre el pooler de Neon:** las transacciones interactivas de Prisma
   (`$transaction`, que usa la creación de tareas para numerarlas sin colisiones)
   funcionan sobre la cadena con `-pooler`. No hace falta añadir `pgbouncer=true`.
@@ -205,7 +231,7 @@ proxy.ts                      comprobación optimista de sesión
 lib/session.ts                firma y verificación del JWT (sirve en el edge)
 lib/session-cookie.ts         lectura y escritura de la cookie
 lib/dal.ts                    capa de acceso a datos: sesión y permisos
-lib/permissions.ts            matriz de rol → permisos
+lib/permissions.ts            catálogo de permisos y roles por defecto
 lib/queries.ts                consultas de lectura, todas filtradas por orgId
 lib/validation.ts             esquemas de Zod
 lib/format.ts                 etiquetas, colores y fechas en español
@@ -253,6 +279,8 @@ Cosas que no están y que serían el siguiente paso natural:
 - **Cambio de contraseña** desde ajustes, y recuperación por correo.
 - **Sprints y registro de horas.** El modelo de datos los admitiría sin
   romper nada.
+- **Permisos por proyecto.** Hoy un rol vale para toda la organización. Poder
+  decir «en este proyecto solo mira» sería el siguiente escalón.
 - **Pertenecer a varias organizaciones.** El esquema ya lo permite (`Membership`
   es una tabla aparte), pero la interfaz no ofrece todavía un selector para
   cambiar de una a otra.

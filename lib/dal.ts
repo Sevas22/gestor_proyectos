@@ -2,12 +2,10 @@ import 'server-only'
 
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
-import type { Role } from '@prisma/client'
-
 import { prisma } from '@/lib/prisma'
 import { decryptSession } from '@/lib/session'
 import { readSessionCookie } from '@/lib/session-cookie'
-import { can, type Permission } from '@/lib/permissions'
+import { can, isPermission, type Permission } from '@/lib/permissions'
 
 /// Capa de acceso a datos.
 ///
@@ -21,7 +19,13 @@ export type Viewer = {
   name: string
   email: string
   avatarSeed: number
-  role: Role
+  /// El rol es ahora una fila de la organización, no un valor fijo. Se lleva
+  /// resuelto en el viewer —nombre para mostrar y permisos para decidir— para
+  /// que ninguna pantalla tenga que volver a consultarlo.
+  roleId: string
+  roleName: string
+  roleColorSeed: number
+  permissions: Permission[]
   orgId: string
   orgName: string
   orgSlug: string
@@ -59,9 +63,9 @@ export const resolveViewer = cache(async (): Promise<ViewerResult> => {
   const membership = await prisma.membership.findUnique({
     where: { userId_orgId: { userId: session.userId, orgId: session.orgId } },
     select: {
-      role: true,
       status: true,
       joinedAt: true,
+      role: { select: { id: true, name: true, colorSeed: true, permissions: true } },
       org: { select: { id: true, name: true, slug: true } },
       user: { select: { id: true, name: true, email: true, avatarSeed: true } },
     },
@@ -84,7 +88,12 @@ export const resolveViewer = cache(async (): Promise<ViewerResult> => {
       name: membership.user.name,
       email: membership.user.email,
       avatarSeed: membership.user.avatarSeed,
-      role: membership.role,
+      roleId: membership.role.id,
+      roleName: membership.role.name,
+      roleColorSeed: membership.role.colorSeed,
+      // Se filtra contra el catálogo: una clave que quedó en la base tras
+      // retirarse del producto no debe colarse como permiso válido.
+      permissions: membership.role.permissions.filter(isPermission),
       orgId: membership.org.id,
       orgName: membership.org.name,
       orgSlug: membership.org.slug,
@@ -123,7 +132,7 @@ export class PermissionError extends Error {
 /// Para server actions: devuelve el viewer sólo si su rol autoriza la acción.
 export async function requirePermission(permission: Permission): Promise<Viewer> {
   const viewer = await requireViewer()
-  if (!can(viewer.role, permission)) throw new PermissionError(permission)
+  if (!can(viewer.permissions, permission)) throw new PermissionError(permission)
   return viewer
 }
 

@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
-import { Settings2, ShieldCheck } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowUpRight, Settings2, ShieldCheck } from 'lucide-react'
 
 import { requireViewer } from '@/lib/dal'
 import { prisma } from '@/lib/prisma'
-import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, can } from '@/lib/permissions'
-import { ROLE_STYLES, formatDate } from '@/lib/format'
+import { can, summarizePermissions } from '@/lib/permissions'
+import { getOrgRoles } from '@/lib/queries'
+import { formatDate, plural, roleColor } from '@/lib/format'
 import { PageHeader } from '@/components/shell/app-shell'
 import { Badge, Card, CardHeader } from '@/components/ui/primitives'
 import { OrgSettingsForm } from '@/components/settings/org-settings-form'
@@ -13,17 +15,22 @@ export const metadata: Metadata = { title: 'Ajustes' }
 
 export default async function SettingsPage() {
   const viewer = await requireViewer()
-  const org = await prisma.organization.findUnique({
-    where: { id: viewer.orgId },
-    select: {
-      name: true,
-      slug: true,
-      createdAt: true,
-      _count: { select: { members: true, projects: true } },
-    },
-  })
+  const [org, roles] = await Promise.all([
+    prisma.organization.findUnique({
+      where: { id: viewer.orgId },
+      select: {
+        name: true,
+        slug: true,
+        createdAt: true,
+        _count: { select: { members: true, projects: true } },
+      },
+    }),
+    getOrgRoles(viewer.orgId),
+  ])
 
-  const canEdit = can(viewer.role, 'org:update')
+  const canEdit = can(viewer.permissions, 'org:update')
+  const canManageRoles = can(viewer.permissions, 'role:manage')
+  const miColor = roleColor(viewer.roleColorSeed)
 
   return (
     <div className="mx-auto max-w-3xl p-5 sm:p-8">
@@ -42,7 +49,9 @@ export default async function SettingsPage() {
         <Card>
           <CardHeader
             title="Organización"
-            subtitle={canEdit ? 'Cambia el nombre visible del equipo' : 'Solo un administrador puede editarlo'}
+            subtitle={
+              canEdit ? 'Cambia el nombre visible del equipo' : 'Tu rol no permite editarlo'
+            }
           />
           <div className="p-5">
             {canEdit ? (
@@ -53,7 +62,7 @@ export default async function SettingsPage() {
 
             <dl className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-3">
               {[
-                ['Identificador', org?.slug ?? '—'],
+                ['Código del equipo', org?.slug ?? '—'],
                 ['Miembros', String(org?._count.members ?? 0)],
                 ['Proyectos', String(org?._count.projects ?? 0)],
               ].map(([term, value]) => (
@@ -87,8 +96,11 @@ export default async function SettingsPage() {
             ))}
             <div className="flex items-center justify-between gap-4 px-5 py-4">
               <dt className="text-sm text-muted-foreground">Rol</dt>
-              <dd>
-                <Badge className={ROLE_STYLES[viewer.role]}>{ROLE_LABELS[viewer.role]}</Badge>
+              <dd className="flex items-center gap-2">
+                <Badge className={miColor.chip}>{viewer.roleName}</Badge>
+                <span className="tabular text-[11px] text-muted-foreground">
+                  {plural(viewer.permissions.length, 'permiso')}
+                </span>
               </dd>
             </div>
           </dl>
@@ -96,22 +108,46 @@ export default async function SettingsPage() {
 
         <Card>
           <CardHeader
-            title="Matriz de permisos"
-            subtitle="Lo que el servidor autoriza para cada rol"
-            action={<ShieldCheck className="size-4 text-muted-foreground" />}
+            title="Roles del equipo"
+            subtitle={`${plural(roles.length, 'rol', 'roles')} configurados`}
+            action={
+              canManageRoles ? (
+                <Link
+                  href="/roles"
+                  className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  Gestionar <ArrowUpRight className="size-3" />
+                </Link>
+              ) : (
+                <ShieldCheck className="size-4 text-muted-foreground" />
+              )
+            }
           />
           <ul className="divide-y divide-border">
-            {ROLE_ORDER.map((role) => (
-              <li key={role} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center">
-                <div className="sm:w-44">
-                  <Badge className={ROLE_STYLES[role]}>{ROLE_LABELS[role]}</Badge>
-                </div>
-                <p className="flex-1 text-xs leading-5 text-muted-foreground">
-                  {ROLE_DESCRIPTIONS[role]}
-                </p>
-              </li>
-            ))}
+            {roles.map((role) => {
+              const color = roleColor(role.colorSeed)
+              return (
+                <li key={role.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center">
+                  <div className="sm:w-48">
+                    <Badge className={color.chip}>{role.name}</Badge>
+                  </div>
+                  <p className="flex-1 text-xs leading-5 text-muted-foreground">
+                    {role.description || summarizePermissions(role.permissions)}
+                  </p>
+                  <span className="tabular shrink-0 text-[11px] text-muted-foreground">
+                    {plural(role._count.members, 'persona')}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
+          <div className="border-t border-border bg-accent/40 px-5 py-4">
+            <p className="text-[11px] leading-5 text-muted-foreground">
+              Los permisos se comprueban en el servidor antes de cada cambio, no solo en la
+              interfaz. Un rol sin permisos de escritura no puede modificar nada aunque llame
+              directamente a la API.
+            </p>
+          </div>
         </Card>
       </div>
     </div>

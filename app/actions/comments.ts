@@ -58,7 +58,7 @@ export async function deleteCommentAction(_prev: ActionState, formData: FormData
 
     // Cualquiera puede borrar lo que escribió; borrar lo de otro exige permiso.
     const isAuthor = comment.authorId === viewer.id
-    if (!isAuthor && !can(viewer.role, 'comment:delete')) {
+    if (!isAuthor && !can(viewer.permissions, 'comment:delete')) {
       return { ok: false, message: 'Solo puedes eliminar tus propios comentarios.' }
     }
 

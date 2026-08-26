@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { createSession, destroySession } from '@/lib/session-cookie'
 import { loginSchema, registerSchema, fieldErrors, type ActionState } from '@/lib/validation'
+import { DEFAULT_ROLES, DEFAULT_JOIN_ROLE } from '@/lib/permissions'
 
 const BCRYPT_COST = 12
 
@@ -30,8 +31,6 @@ async function uniqueSlug(base: string) {
   return candidate
 }
 
-/// Registro: crea la persona, su organización y la membresía de administrador
-/// en una sola transacción. Si algo falla, no queda un usuario sin equipo.
 /// Registro. Dos caminos según lo que eligió el formulario:
 ///
 ///   'create' → nace la organización y quien la crea entra como ADMIN activo.
@@ -68,13 +67,29 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   if (parsed.data.mode === 'join') {
     const org = await prisma.organization.findUnique({
       where: { slug: parsed.data.teamCode },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        roles: { select: { id: true, name: true, permissions: true } },
+      },
     })
     if (!org) {
       return {
         ok: false,
         errors: { teamCode: ['No hay ningún equipo con ese código. Compruébalo con quien te lo dio.'] },
       }
+    }
+
+    // Rol de partida mientras espera. No concede nada —la membresía está
+    // PENDING— pero la fila necesita apuntar a algún rol. Se prefiere el que la
+    // organización llame como el rol de entrada por defecto; si le cambiaron el
+    // nombre o lo borraron, el de menos permisos, que es el más inocuo.
+    const propuesto =
+      org.roles.find((r) => r.name === DEFAULT_JOIN_ROLE) ??
+      [...org.roles].sort((a, b) => a.permissions.length - b.permissions.length)[0]
+
+    if (!propuesto) {
+      return { ok: false, message: 'Ese equipo no tiene roles configurados. Avisa a quien lo administra.' }
     }
 
     session = await prisma.$transaction(async (tx) => {
@@ -85,7 +100,7 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
       const membership = await tx.membership.create({
         // El rol es solo la propuesta de partida; mientras esté PENDING no
         // autoriza nada. Quien apruebe decidirá con cuál se queda.
-        data: { userId: user.id, orgId: org.id, role: 'DEVELOPER', status: 'PENDING' },
+        data: { userId: user.id, orgId: org.id, roleId: propuesto.id, status: 'PENDING' },
         select: { userId: true, orgId: true },
       })
       return membership
@@ -100,12 +115,19 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
         select: { id: true },
       })
       const org = await tx.organization.create({
-        data: { name: orgName, slug },
-        select: { id: true },
+        data: {
+          name: orgName,
+          slug,
+          // Toda organización nace con un juego de roles editable. Sin esto no
+          // habría ninguno al que asignar a nadie.
+          roles: { create: DEFAULT_ROLES },
+        },
+        select: { id: true, roles: { select: { id: true, isSystem: true } } },
       })
+      const adminRole = org.roles.find((r) => r.isSystem)!
       const membership = await tx.membership.create({
         // Quien crea el equipo lo administra, y no espera aprobación de nadie.
-        data: { userId: user.id, orgId: org.id, role: 'ADMIN', status: 'ACTIVE' },
+        data: { userId: user.id, orgId: org.id, roleId: adminRole.id, status: 'ACTIVE' },
         select: { userId: true, orgId: true },
       })
       await tx.activity.create({

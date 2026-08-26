@@ -5,8 +5,7 @@ import Link from 'next/link'
 import { Command, LogOut, Menu } from 'lucide-react'
 
 import type { Viewer } from '@/lib/dal'
-import { ROLE_LABELS } from '@/lib/permissions'
-import { ROLE_STYLES, plural } from '@/lib/format'
+import { plural, roleColor } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Avatar, Badge } from '@/components/ui/primitives'
 import { SidebarNav } from '@/components/shell/sidebar-nav'
@@ -59,7 +58,7 @@ export function AppShell({
           <Avatar name={viewer.name} seed={viewer.avatarSeed} size="sm" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold">{viewer.name}</p>
-            <Badge className={cn('mt-0.5', ROLE_STYLES[viewer.role])}>{ROLE_LABELS[viewer.role]}</Badge>
+            <Badge className={cn('mt-0.5', roleColor(viewer.roleColorSeed).chip)}>{viewer.roleName}</Badge>
           </div>
           <form action={logoutAction}>
             <button
