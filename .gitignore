@@ -12,10 +12,12 @@ next-env.d.ts
 # producción
 dist
 
-# entorno — nunca subir claves ni cadenas de conexión
-.env
-.env.local
-.env*.local
+# entorno — nunca subir claves ni cadenas de conexión.
+# El comodín cubre .env, .env.local, .env.production y cualquier variante:
+# listar los nombres uno a uno deja huecos por los que se cuela una credencial.
+.env*
+# ...salvo la plantilla, que sí debe estar en el repositorio.
+!.env.example
 
 # logs y sistema
 npm-debug.log*
