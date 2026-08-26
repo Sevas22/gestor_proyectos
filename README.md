@@ -161,6 +161,11 @@ Neon de producción (no solo compilando):
   (`$transaction`, que usa la creación de tareas para numerarlas sin colisiones)
   funcionan sobre la cadena con `-pooler`. No hace falta añadir `pgbouncer=true`.
 
+## Despliegue
+
+Las variables de entorno y los pasos para publicarlo están en
+[DEPLOY.md](DEPLOY.md).
+
 ## Scripts
 
 | Comando | Qué hace |
