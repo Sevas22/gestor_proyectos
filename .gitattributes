@@ -1,0 +1,10 @@
+# Normaliza los saltos de línea en el repositorio.
+# Sin esto, clonar en Windows y en Linux produce diffs falsos en todo el árbol.
+* text=auto eol=lf
+
+# Binarios: que git no intente convertir nada.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary

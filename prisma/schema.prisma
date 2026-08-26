@@ -1,0 +1,201 @@
+// Esquema del gestor de proyectos.
+// Postgres (Neon en producción). Ver README para obtener la DATABASE_URL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Neon: cadena con -pooler (PgBouncer). Sirve para la app en runtime.
+  url       = env("DATABASE_URL")
+  // Neon: cadena sin -pooler. Las migraciones necesitan conexión directa.
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// Rol dentro de una organización. Determina qué puede hacer cada miembro.
+/// La matriz de permisos vive en lib/permissions.ts.
+enum Role {
+  ADMIN
+  MANAGER
+  DEVELOPER
+  VIEWER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+/// Columnas del tablero Kanban, en orden.
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+/// Tipo de evento del feed de actividad.
+enum ActivityType {
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_STATUS_CHANGED
+  TASK_ASSIGNED
+  TASK_DELETED
+  COMMENT_CREATED
+  MEMBER_JOINED
+  MEMBER_ROLE_CHANGED
+  MEMBER_REMOVED
+}
+
+// ---------------------------------------------------------------------------
+// Modelos
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  /// Índice de la paleta de avatares (lib/format.ts). Da un color estable por persona.
+  avatarSeed   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships   Membership[]
+  assignedTasks Task[]       @relation("TaskAssignee")
+  createdTasks  Task[]       @relation("TaskCreator")
+  comments      Comment[]
+  activities    Activity[]
+}
+
+/// Espacio de trabajo de un equipo. Todo lo demás cuelga de aquí.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members    Membership[]
+  projects   Project[]
+  activities Activity[]
+}
+
+/// Une a una persona con una organización y le asigna un rol.
+model Membership {
+  id     String @id @default(cuid())
+  role   Role   @default(DEVELOPER)
+  userId String
+  orgId  String
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  joinedAt DateTime     @default(now())
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  /// Prefijo corto de las tareas: WEB, API, MOB. Único dentro de la organización.
+  key         String
+  description String        @default("")
+  status      ProjectStatus @default(ACTIVE)
+  /// Índice de la paleta de acentos (lib/format.ts).
+  colorSeed   Int           @default(0)
+  dueDate     DateTime?
+  orgId       String
+  org         Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tasks      Task[]
+  activities Activity[]
+
+  @@unique([orgId, key])
+  @@index([orgId])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  /// Correlativo por proyecto. Junto con project.key forma el identificador visible (WEB-142).
+  number      Int
+  title       String
+  description String     @default("")
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  /// Orden dentro de su columna del tablero. Float para poder insertar entre dos tarjetas
+  /// sin reindexar las demás.
+  position    Float      @default(0)
+  dueDate     DateTime?
+  projectId   String
+  assigneeId  String?
+  createdById String
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee  User?    @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy User     @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments   Comment[]
+  activities Activity[]
+
+  @@unique([projectId, number])
+  @@index([projectId, status])
+  @@index([assigneeId])
+}
+
+model Comment {
+  id       String @id @default(cuid())
+  body     String
+  taskId   String
+  authorId String
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId])
+}
+
+/// Feed de actividad. Se escribe desde las server actions después de cada mutación.
+/// Guarda el texto ya resuelto para que el feed no dependa de filas que pueden borrarse.
+model Activity {
+  id        String       @id @default(cuid())
+  type      ActivityType
+  /// Frase corta ya redactada: «movió WEB-142 a En revisión».
+  summary   String
+  actorId   String
+  orgId     String
+  projectId String?
+  taskId    String?
+
+  actor     User         @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  project   Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  task      Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  createdAt DateTime     @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([projectId])
+}
