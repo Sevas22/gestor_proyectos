@@ -26,6 +26,16 @@ enum Role {
   VIEWER
 }
 
+/// Estado de la pertenencia a una organización.
+/// Quien se registra con el código de un equipo entra como PENDING: tiene
+/// cuenta y sesión, pero no ve ni un solo dato hasta que un administrador le
+/// asigna rol. El rol de una membresía PENDING es solo la propuesta inicial;
+/// no concede nada.
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+}
+
 enum ProjectStatus {
   ACTIVE
   PAUSED
@@ -99,8 +109,9 @@ model Organization {
 
 /// Une a una persona con una organización y le asigna un rol.
 model Membership {
-  id     String @id @default(cuid())
-  role   Role   @default(DEVELOPER)
+  id     String           @id @default(cuid())
+  role   Role             @default(DEVELOPER)
+  status MembershipStatus @default(PENDING)
   userId String
   orgId  String
 
@@ -109,7 +120,7 @@ model Membership {
   joinedAt DateTime     @default(now())
 
   @@unique([userId, orgId])
-  @@index([orgId])
+  @@index([orgId, status])
 }
 
 model Project {

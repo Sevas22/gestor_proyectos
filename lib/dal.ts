@@ -27,14 +27,26 @@ export type Viewer = {
   orgSlug: string
 }
 
-/// Tres desenlaces, no dos. Distinguir «no hay cookie» de «la cookie ya no
-/// corresponde a nadie» es lo que evita un bucle de redirecciones: el proxy solo
-/// mira la firma, así que da por buena una cookie caducada de contenido y manda
-/// a /dashboard, mientras esta capa mandaría a /login. Uno y otro se
-/// contradirían para siempre. La cookie huérfana hay que borrarla.
+/// Cuatro desenlaces, no dos. El proxy solo mira la firma de la cookie, así que
+/// no distingue entre tener sesión y tener acceso; esta capa sí, y cada caso va
+/// a un sitio distinto:
+///
+///   anonymous  sin cookie                    → /login
+///   stale      firma buena, fila ausente     → /logout, que borra la cookie
+///   pending    fila existe, sin aprobar      → /pendiente
+///   ok         acceso completo
+///
+/// Separar `stale` es lo que evita un bucle infinito: el proxy daría por buena
+/// una cookie huérfana y mandaría al panel mientras esta capa manda a /login,
+/// contradiciéndose para siempre. Hay que borrarla, no solo redirigir.
 export type ViewerResult =
   | { status: 'anonymous' }
   | { status: 'stale' }
+  /// Cuenta creada y sesión válida, pero nadie le ha dado el visto bueno
+  /// todavía. Se devuelve lo mínimo para pintar la sala de espera: nombre de
+  /// la organización a la que pidió entrar y desde cuándo espera. Ni un dato
+  /// del equipo.
+  | { status: 'pending'; orgName: string; since: Date }
   | { status: 'ok'; viewer: Viewer }
 
 /// Lee la sesión y resuelve el usuario junto con su rol en la organización activa.
@@ -48,6 +60,8 @@ export const resolveViewer = cache(async (): Promise<ViewerResult> => {
     where: { userId_orgId: { userId: session.userId, orgId: session.orgId } },
     select: {
       role: true,
+      status: true,
+      joinedAt: true,
       org: { select: { id: true, name: true, slug: true } },
       user: { select: { id: true, name: true, email: true, avatarSeed: true } },
     },
@@ -56,6 +70,12 @@ export const resolveViewer = cache(async (): Promise<ViewerResult> => {
   // Firma buena, fila ausente: le sacaron del equipo, se borró la organización
   // o se reinició la base de datos con la sesión abierta.
   if (!membership) return { status: 'stale' }
+
+  // Una membresía pendiente tiene rol asignado en la fila, pero ese rol es solo
+  // la propuesta inicial: no autoriza nada hasta que un administrador aprueba.
+  if (membership.status === 'PENDING') {
+    return { status: 'pending', orgName: membership.org.name, since: membership.joinedAt }
+  }
 
   return {
     status: 'ok',
@@ -80,7 +100,9 @@ export async function getViewer(): Promise<Viewer | null> {
 /// A dónde mandar a quien no tiene sesión utilizable. /logout es un route
 /// handler, que sí puede borrar la cookie; un componente de servidor no puede.
 export function destinationFor(result: ViewerResult): string {
-  return result.status === 'stale' ? '/logout' : '/login'
+  if (result.status === 'stale') return '/logout'
+  if (result.status === 'pending') return '/pendiente'
+  return '/login'
 }
 
 /// Igual que getViewer pero corta la ejecución si no hay sesión. Para páginas

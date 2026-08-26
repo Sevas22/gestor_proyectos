@@ -28,10 +28,28 @@ const taskCard = {
 
 export type TaskCard = Awaited<ReturnType<typeof getProjectTasks>>[number]
 
+/// Solo miembros aprobados. Alimenta la lista del equipo y el desplegable de
+/// responsables: si colara alguien pendiente, se le podrían asignar tareas
+/// antes de que nadie le haya dado acceso.
 export const getOrgMembers = cache(async (orgId: string) => {
   return prisma.membership.findMany({
-    where: { orgId },
+    where: { orgId, status: 'ACTIVE' },
     orderBy: [{ role: 'asc' }, { user: { name: 'asc' } }],
+    select: {
+      id: true,
+      role: true,
+      joinedAt: true,
+      user: { select: { id: true, name: true, email: true, avatarSeed: true } },
+    },
+  })
+})
+
+/// Solicitudes de entrada esperando aprobación, las más antiguas primero:
+/// quien lleva más tiempo esperando debería resolverse antes.
+export const getPendingMembers = cache(async (orgId: string) => {
+  return prisma.membership.findMany({
+    where: { orgId, status: 'PENDING' },
+    orderBy: { joinedAt: 'asc' },
     select: {
       id: true,
       role: true,
@@ -183,7 +201,7 @@ export const getDashboardStats = cache(async (orgId: string, userId: string) => 
         where: { project: { orgId }, assigneeId: userId, status: { not: 'DONE' } },
       }),
       prisma.project.count({ where: { orgId, status: 'ACTIVE' } }),
-      prisma.membership.count({ where: { orgId } }),
+      prisma.membership.count({ where: { orgId, status: 'ACTIVE' } }),
       prisma.task.count({
         where: {
           project: { orgId },
@@ -219,7 +237,7 @@ export const getDashboardStats = cache(async (orgId: string, userId: string) => 
 /// Carga de trabajo por persona, para la pantalla de equipo y la portada.
 export const getWorkload = cache(async (orgId: string) => {
   const members = await prisma.membership.findMany({
-    where: { orgId },
+    where: { orgId, status: 'ACTIVE' },
     select: {
       user: {
         select: {

@@ -79,8 +79,12 @@ botón de crear ni podrá arrastrar tarjetas.
 ## Qué hace
 
 - **Organizaciones.** Cada equipo es una organización y todo cuelga de ella.
-  Registrarse crea la cuenta y la organización a la vez, y quien la crea queda
-  como administrador.
+- **Alta con aprobación.** Registrarse tiene dos caminos: crear un equipo nuevo
+  —quedas como administrador— o pedir entrar a uno existente con su **código**.
+  Quien pide entrar queda *pendiente*: tiene cuenta y sesión, pero no ve un solo
+  dato del equipo hasta que un administrador le asigna rol. Aprobar y asignar
+  rol son el mismo gesto, para que nadie quede dentro sin que se haya decidido
+  qué puede tocar.
 - **Proyectos.** Con clave corta (`WEB`, `API`), color, estado y fecha de
   entrega. Las tareas se numeran por proyecto: `WEB-1`, `WEB-2`.
 - **Tablero Kanban.** Cuatro columnas con arrastrar y soltar. El movimiento se
@@ -95,10 +99,22 @@ botón de crear ni podrá arrastrar tarjetas.
 
 | Rol | Puede |
 |---|---|
-| Administrador | Todo, incluidos miembros y ajustes de la organización |
-| Gestor de proyecto | Crear y borrar proyectos y tareas, invitar miembros |
+| Administrador | Todo: aprueba solicitudes, asigna roles, gestiona miembros y ajustes |
+| Gestor de proyecto | Crear y borrar proyectos y tareas, dar de alta miembros |
 | Desarrollador | Crear y editar tareas, moverlas en el tablero, comentar |
 | Observador | Solo lectura |
+
+Aprobar solicitudes y cambiar roles son exclusivos del **Administrador**. Un
+gestor puede dar de alta a alguien, pero no repartir el acceso de quien llega
+por su cuenta: decidir quién entra y con qué permisos es una sola decisión y
+tiene un solo dueño.
+
+### El código del equipo
+
+Cada organización tiene un código —su identificador, como `acme-cloud`— que el
+administrador ve en la pantalla de *Equipo*. **No es un secreto que dé acceso:**
+con él solo se consigue una solicitud en espera, y sin aprobación no se ve nada.
+Por eso se puede compartir por el canal que sea.
 
 ## Seguridad
 

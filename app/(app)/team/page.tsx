@@ -1,22 +1,27 @@
 import type { Metadata } from 'next'
-import { ShieldCheck, Users } from 'lucide-react'
+import { Clock3, ShieldCheck, Users } from 'lucide-react'
 
 import { requireViewer } from '@/lib/dal'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, can } from '@/lib/permissions'
-import { getOrgMembers, getWorkload } from '@/lib/queries'
+import { getOrgMembers, getPendingMembers, getWorkload } from '@/lib/queries'
 import { ROLE_STYLES, formatDate, plural } from '@/lib/format'
 import { PageHeader } from '@/components/shell/app-shell'
-import { Avatar, Badge, Card, CardHeader, Progress } from '@/components/ui/primitives'
+import { Avatar, Badge, Card, CardHeader, EmptyState, Progress } from '@/components/ui/primitives'
 import { InviteMemberDialog } from '@/components/team/invite-member-dialog'
 import { MemberRow } from '@/components/team/member-row'
+import { PendingRequests } from '@/components/team/pending-requests'
+import { TeamCode } from '@/components/team/team-code'
 
 export const metadata: Metadata = { title: 'Equipo' }
 
 export default async function TeamPage() {
   const viewer = await requireViewer()
-  const [members, workload] = await Promise.all([
+  const canApprove = can(viewer.role, 'member:approve')
+  const [members, workload, pending] = await Promise.all([
     getOrgMembers(viewer.orgId),
     getWorkload(viewer.orgId),
+    // Solo se consultan las solicitudes si quien mira puede resolverlas.
+    canApprove ? getPendingMembers(viewer.orgId) : Promise.resolve([]),
   ])
 
   const canInvite = can(viewer.role, 'member:invite')
@@ -37,6 +42,40 @@ export default async function TeamPage() {
         description="Quién está en la organización, con qué rol y cuánto trabajo tiene abierto."
         action={canInvite ? <InviteMemberDialog viewerRole={viewer.role} /> : undefined}
       />
+
+      {canApprove && (
+        <div className="mb-6 grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
+          <Card className="overflow-hidden">
+            <CardHeader
+              title="Solicitudes de entrada"
+              subtitle={
+                pending.length === 0
+                  ? 'No hay ninguna esperando'
+                  : `${plural(pending.length, 'persona espera', 'personas esperan')} tu aprobación`
+              }
+              action={
+                pending.length > 0 ? (
+                  <span className="tabular flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                    <Clock3 className="size-3" />
+                    {pending.length}
+                  </span>
+                ) : undefined
+              }
+            />
+            {pending.length === 0 ? (
+              <EmptyState
+                icon={<Clock3 className="size-5" />}
+                title="Nadie esperando"
+                description="Cuando alguien se registre con el código del equipo, su solicitud aparecerá aquí para que le asignes un rol."
+              />
+            ) : (
+              <PendingRequests requests={pending} canPromoteToAdmin={viewer.role === 'ADMIN'} />
+            )}
+          </Card>
+
+          <TeamCode code={viewer.orgSlug} />
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
         <Card className="overflow-hidden">

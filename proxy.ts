@@ -13,10 +13,14 @@ import { decryptSession, SESSION_COOKIE_NAME } from '@/lib/session'
 const PROTECTED_PREFIXES = ['/dashboard', '/projects', '/tasks', '/team', '/settings']
 const AUTH_ROUTES = ['/login', '/register']
 
-// /logout no aparece en ninguna de las dos listas a propósito: tiene que pasar
-// de largo aunque haya cookie, porque su trabajo es precisamente borrarla.
-// Tratarlo como ruta de autenticación lo devolvería a /dashboard y la cookie
-// huérfana nunca se limpiaría.
+// /logout y /pendiente no aparecen en ninguna de las dos listas a propósito.
+//
+// /logout tiene que pasar de largo aunque haya cookie, porque su trabajo es
+// precisamente borrarla: tratarlo como ruta de autenticación lo devolvería a
+// /dashboard y la cookie huérfana nunca se limpiaría.
+//
+// /pendiente necesita sesión pero no acceso al equipo, y el proxy no puede
+// distinguir una cosa de otra sin consultar la base. Lo decide lib/dal.ts.
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl

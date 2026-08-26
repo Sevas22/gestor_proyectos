@@ -32,17 +32,27 @@ async function uniqueSlug(base: string) {
 
 /// Registro: crea la persona, su organización y la membresía de administrador
 /// en una sola transacción. Si algo falla, no queda un usuario sin equipo.
+/// Registro. Dos caminos según lo que eligió el formulario:
+///
+///   'create' → nace la organización y quien la crea entra como ADMIN activo.
+///   'join'   → se pide entrar a una que ya existe. La membresía nace PENDING:
+///              la persona tiene cuenta y sesión, pero no ve ni un dato del
+///              equipo hasta que un administrador la aprueba.
 export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const mode = formData.get('mode') === 'join' ? 'join' : 'create'
   const parsed = registerSchema.safeParse({
+    mode,
     name: formData.get('name'),
     email: formData.get('email'),
     password: formData.get('password'),
     confirmPassword: formData.get('confirmPassword'),
-    orgName: formData.get('orgName'),
+    ...(mode === 'join'
+      ? { teamCode: formData.get('teamCode') }
+      : { orgName: formData.get('orgName') }),
   })
   if (!parsed.success) return fieldErrors(parsed.error)
 
-  const { name, email, password, orgName } = parsed.data
+  const { name, email, password } = parsed.data
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } })
   if (existing) {
@@ -50,43 +60,71 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_COST)
-  const slug = await uniqueSlug(slugify(orgName))
+  // Color de avatar estable, repartido por la paleta.
+  const avatarSeed = Math.floor(Math.random() * 8)
 
-  const membership = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        // Color de avatar estable, repartido por la paleta.
-        avatarSeed: Math.floor(Math.random() * 8),
-      },
-      select: { id: true },
-    })
-    const org = await tx.organization.create({
-      data: { name: orgName, slug },
-      select: { id: true },
-    })
-    const created = await tx.membership.create({
-      // Quien crea el equipo lo administra.
-      data: { userId: user.id, orgId: org.id, role: 'ADMIN' },
-      select: { userId: true, orgId: true },
-    })
-    await tx.activity.create({
-      data: {
-        type: 'MEMBER_JOINED',
-        summary: `creó la organización ${orgName}`,
-        actorId: user.id,
-        orgId: org.id,
-      },
-    })
-    return created
-  })
+  let session: { userId: string; orgId: string }
 
-  await createSession({ userId: membership.userId, orgId: membership.orgId })
+  if (parsed.data.mode === 'join') {
+    const org = await prisma.organization.findUnique({
+      where: { slug: parsed.data.teamCode },
+      select: { id: true, name: true },
+    })
+    if (!org) {
+      return {
+        ok: false,
+        errors: { teamCode: ['No hay ningún equipo con ese código. Compruébalo con quien te lo dio.'] },
+      }
+    }
+
+    session = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { name, email, passwordHash, avatarSeed },
+        select: { id: true },
+      })
+      const membership = await tx.membership.create({
+        // El rol es solo la propuesta de partida; mientras esté PENDING no
+        // autoriza nada. Quien apruebe decidirá con cuál se queda.
+        data: { userId: user.id, orgId: org.id, role: 'DEVELOPER', status: 'PENDING' },
+        select: { userId: true, orgId: true },
+      })
+      return membership
+    })
+  } else {
+    const { orgName } = parsed.data
+    const slug = await uniqueSlug(slugify(orgName))
+
+    session = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { name, email, passwordHash, avatarSeed },
+        select: { id: true },
+      })
+      const org = await tx.organization.create({
+        data: { name: orgName, slug },
+        select: { id: true },
+      })
+      const membership = await tx.membership.create({
+        // Quien crea el equipo lo administra, y no espera aprobación de nadie.
+        data: { userId: user.id, orgId: org.id, role: 'ADMIN', status: 'ACTIVE' },
+        select: { userId: true, orgId: true },
+      })
+      await tx.activity.create({
+        data: {
+          type: 'MEMBER_JOINED',
+          summary: `creó la organización ${orgName}`,
+          actorId: user.id,
+          orgId: org.id,
+        },
+      })
+      return membership
+    })
+  }
+
+  await createSession(session)
   // redirect lanza una excepción de control interna de Next: va fuera de
   // cualquier try/catch para que no se la trague.
-  redirect('/dashboard')
+  // Quien pidió entrar acaba en la sala de espera; quien creó equipo, en el panel.
+  redirect(parsed.data.mode === 'join' ? '/pendiente' : '/dashboard')
 }
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -98,7 +136,15 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
 
   const user = await prisma.user.findUnique({
     where: { email: parsed.data.email },
-    select: { id: true, passwordHash: true, memberships: { select: { orgId: true }, take: 1 } },
+    select: {
+      id: true,
+      passwordHash: true,
+      // Se traen todas y se elige en código. Ordenar por `status` funcionaría,
+      // pero Prisma ordena los enums por su orden de declaración —PENDING antes
+      // que ACTIVE—, así que el criterio se rompería en silencio si alguien
+      // reordena el enum.
+      memberships: { select: { orgId: true, status: true } },
+    },
   })
 
   // Mismo mensaje exista o no la cuenta: decir "ese correo no está registrado"
@@ -113,13 +159,17 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   const matches = await bcrypt.compare(parsed.data.password, user.passwordHash)
   if (!matches) return invalid
 
-  const orgId = user.memberships[0]?.orgId
-  if (!orgId) {
+  // Una membresía aprobada manda sobre una en espera: si alguien está activo en
+  // un equipo y pendiente en otro, entra al que ya le dejó pasar.
+  const membership =
+    user.memberships.find((m) => m.status === 'ACTIVE') ?? user.memberships[0]
+
+  if (!membership) {
     return { ok: false, message: 'Tu cuenta no pertenece a ninguna organización. Pide que te inviten.' }
   }
 
-  await createSession({ userId: user.id, orgId })
-  redirect('/dashboard')
+  await createSession({ userId: user.id, orgId: membership.orgId })
+  redirect(membership.status === 'ACTIVE' ? '/dashboard' : '/pendiente')
 }
 
 export async function logoutAction() {

@@ -7,18 +7,40 @@ import { z } from 'zod'
 
 const trimmed = (max: number) => z.string().trim().max(max)
 
+// El registro tiene dos caminos y el formulario elige uno con el campo `mode`:
+//   'create' → nace una organización y quien la crea es su administrador
+//   'join'   → se pide entrar a una que ya existe, con su código
+// Van en un solo esquema discriminado para que cada camino exija exactamente
+// sus campos: pedir el nombre del equipo a quien se está uniendo, o el código a
+// quien lo está creando, sería pedir datos que esa persona no tiene.
+const credentials = {
+  name: trimmed(80).min(2, 'Escribe tu nombre completo.'),
+  email: trimmed(160).toLowerCase().pipe(z.email('Ese correo no parece válido.')),
+  password: z.string().min(8, 'La contraseña necesita al menos 8 caracteres.').max(200),
+  confirmPassword: z.string(),
+}
+
+const passwordsMatch = (data: { password: string; confirmPassword: string }) =>
+  data.password === data.confirmPassword
+
+const mismatch = { message: 'Las contraseñas no coinciden.', path: ['confirmPassword'] }
+
 export const registerSchema = z
-  .object({
-    name: trimmed(80).min(2, 'Escribe tu nombre completo.'),
-    email: trimmed(160).toLowerCase().pipe(z.email('Ese correo no parece válido.')),
-    password: z.string().min(8, 'La contraseña necesita al menos 8 caracteres.').max(200),
-    confirmPassword: z.string(),
-    orgName: trimmed(80).min(2, 'Dale un nombre a tu equipo.'),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Las contraseñas no coinciden.',
-    path: ['confirmPassword'],
-  })
+  .discriminatedUnion('mode', [
+    z.object({
+      mode: z.literal('create'),
+      ...credentials,
+      orgName: trimmed(80).min(2, 'Dale un nombre a tu equipo.'),
+    }),
+    z.object({
+      mode: z.literal('join'),
+      ...credentials,
+      teamCode: trimmed(40)
+        .min(2, 'Pide el código a quien administra el equipo.')
+        .toLowerCase(),
+    }),
+  ])
+  .refine(passwordsMatch, mismatch)
 
 export const loginSchema = z.object({
   email: trimmed(160).toLowerCase().pipe(z.email('Ese correo no parece válido.')),

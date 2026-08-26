@@ -119,8 +119,10 @@ async function main() {
       })
       await prisma.membership.upsert({
         where: { userId_orgId: { userId: user.id, orgId: org.id } },
-        update: { role: person.role },
-        create: { userId: user.id, orgId: org.id, role: person.role },
+        update: { role: person.role, status: 'ACTIVE' },
+        // status explícito: el valor por defecto del esquema es PENDING, así que
+        // omitirlo dejaría a todo el equipo de demostración esperando aprobación.
+        create: { userId: user.id, orgId: org.id, role: person.role, status: 'ACTIVE' },
       })
       return user
     }),
@@ -190,6 +192,23 @@ async function main() {
     ],
   })
 
+  // Una solicitud sin resolver, para que se vea la bandeja de aprobación.
+  const solicitante = await prisma.user.upsert({
+    where: { email: 'nuevo@nucleus.test' },
+    update: { name: 'Pablo Herrera' },
+    create: {
+      email: 'nuevo@nucleus.test',
+      name: 'Pablo Herrera',
+      passwordHash,
+      avatarSeed: 5,
+    },
+  })
+  await prisma.membership.upsert({
+    where: { userId_orgId: { userId: solicitante.id, orgId: org.id } },
+    update: { status: 'PENDING', role: 'DEVELOPER' },
+    create: { userId: solicitante.id, orgId: org.id, role: 'DEVELOPER', status: 'PENDING' },
+  })
+
   const taskCount = await prisma.task.count({ where: { project: { orgId: org.id } } })
 
   console.log(`
@@ -206,8 +225,14 @@ Entra con cualquiera de estas cuentas — la contraseña es la misma para todas:
 
   Contraseña     ${DEMO_PASSWORD}
 
+Código de este equipo: ${org.slug}
+Con él, cualquiera puede pedir entrar desde la pantalla de registro.
+
 Para ver los permisos en acción, entra como tomas@nucleus.test (observador):
 no verá ningún botón de crear ni podrá mover tarjetas.
+
+Hay además una solicitud sin resolver (Pablo Herrera). Entra como
+ana@nucleus.test y la verás en Equipo, esperando que le asignes un rol.
 `)
 }
 

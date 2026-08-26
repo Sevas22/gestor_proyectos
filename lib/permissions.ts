@@ -14,6 +14,7 @@ export type Permission =
   | 'comment:create'
   | 'comment:delete'
   | 'member:invite'
+  | 'member:approve'
   | 'member:update_role'
   | 'member:remove'
   | 'org:update'
@@ -31,6 +32,7 @@ const MATRIX: Record<Role, readonly Permission[]> = {
     'comment:create',
     'comment:delete',
     'member:invite',
+    'member:approve',
     'member:update_role',
     'member:remove',
     'org:update',
