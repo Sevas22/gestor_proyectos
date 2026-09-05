@@ -10,7 +10,7 @@ import {
   PRIORITY_LABELS,
   PRIORITY_ORDER,
   TASK_STATUS_LABELS,
-  TASK_STATUS_ORDER,
+  ALL_TASK_STATUSES,
   toDateInputValue,
 } from '@/lib/format'
 import { Dialog } from '@/components/ui/dialog'
@@ -122,7 +122,7 @@ export function TaskDialog({
 
           <Field label="Estado" htmlFor="status" error={state.errors?.status}>
             <Select id="status" name="status" defaultValue={values.status}>
-              {TASK_STATUS_ORDER.map((status) => (
+              {ALL_TASK_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {TASK_STATUS_LABELS[status]}
                 </option>

@@ -97,14 +97,19 @@ export const getProjects = cache(async (orgId: string) => {
 
   // El recuento se calcula aquí y no con _count porque necesitamos el desglose
   // por estado, que _count no sabe dar en una sola consulta.
+  // El progreso mide el trabajo comprometido, así que el backlog queda fuera:
+  // si contara, añadir ideas al backlog haría bajar el porcentaje de un proyecto
+  // en el que nadie ha dejado de avanzar.
   return projects.map(({ tasks, ...project }) => {
-    const done = tasks.filter((t) => t.status === 'DONE').length
+    const board = tasks.filter((t) => t.status !== 'BACKLOG')
+    const done = board.filter((t) => t.status === 'DONE').length
     return {
       ...project,
-      taskCount: tasks.length,
+      taskCount: board.length,
       doneCount: done,
-      progress: tasks.length === 0 ? 0 : Math.round((done / tasks.length) * 100),
-      memberCount: new Set(tasks.map((t) => t.assigneeId).filter(Boolean)).size,
+      backlogCount: tasks.length - board.length,
+      progress: board.length === 0 ? 0 : Math.round((done / board.length) * 100),
+      memberCount: new Set(board.map((t) => t.assigneeId).filter(Boolean)).size,
     }
   })
 })
@@ -134,9 +139,20 @@ export const getProject = cache(async (projectId: string, orgId: string) => {
   })
 })
 
+/// Tareas del tablero. Excluye el backlog: son cosas que el equipo aún no se ha
+/// comprometido a hacer, y meterlas en el Kanban lo ahogaría.
 export const getProjectTasks = cache(async (projectId: string, orgId: string) => {
   return prisma.task.findMany({
-    where: { projectId, project: { orgId } },
+    where: { projectId, project: { orgId }, status: { not: 'BACKLOG' } },
+    orderBy: [{ position: 'asc' }, { createdAt: 'desc' }],
+    select: taskCard,
+  })
+})
+
+/// El backlog del proyecto, en el orden que le haya dado el equipo.
+export const getProjectBacklog = cache(async (projectId: string, orgId: string) => {
+  return prisma.task.findMany({
+    where: { projectId, project: { orgId }, status: 'BACKLOG' },
     orderBy: [{ position: 'asc' }, { createdAt: 'desc' }],
     select: taskCard,
   })
@@ -208,16 +224,16 @@ export const getDashboardStats = cache(async (orgId: string, userId: string) => 
         where: { project: { orgId } },
         _count: { _all: true },
       }),
-      prisma.task.count({ where: { project: { orgId } } }),
+      prisma.task.count({ where: { project: { orgId }, status: { not: 'BACKLOG' } } }),
       prisma.task.count({
         where: {
           project: { orgId },
-          status: { not: 'DONE' },
+          status: { notIn: ['DONE', 'BACKLOG'] },
           dueDate: { lt: new Date(new Date().setHours(0, 0, 0, 0)) },
         },
       }),
       prisma.task.count({
-        where: { project: { orgId }, assigneeId: userId, status: { not: 'DONE' } },
+        where: { project: { orgId }, assigneeId: userId, status: { notIn: ['DONE', 'BACKLOG'] } },
       }),
       prisma.project.count({ where: { orgId, status: 'ACTIVE' } }),
       prisma.membership.count({ where: { orgId, status: 'ACTIVE' } }),
@@ -236,9 +252,13 @@ export const getDashboardStats = cache(async (orgId: string, userId: string) => 
   >
 
   const done = counts.DONE ?? 0
+  const backlog = counts.BACKLOG ?? 0
 
+  // `total` ya viene sin backlog de la consulta; el resto de recuentos salen del
+  // groupBy, que sí lo incluye, y por eso se expone aparte.
   return {
     total,
+    backlog,
     todo: counts.TODO ?? 0,
     inProgress: counts.IN_PROGRESS ?? 0,
     inReview: counts.IN_REVIEW ?? 0,
@@ -263,8 +283,10 @@ export const getWorkload = cache(async (orgId: string) => {
           id: true,
           name: true,
           avatarSeed: true,
+          // Sin backlog: la carga de trabajo es lo que alguien tiene entre
+          // manos, no lo que quizá le toque algún día.
           assignedTasks: {
-            where: { project: { orgId } },
+            where: { project: { orgId }, status: { not: 'BACKLOG' } },
             select: { status: true },
           },
         },

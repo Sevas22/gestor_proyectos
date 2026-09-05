@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { TaskStatus } from '@prisma/client'
 
-import { TASK_STATUS_LABELS, TASK_STATUS_ORDER } from '@/lib/format'
+import { ALL_TASK_STATUSES, TASK_STATUS_LABELS } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Select } from '@/components/ui/primitives'
 
@@ -68,7 +68,7 @@ export function TaskFilters({
         className="w-auto min-w-40"
       >
         <option value="">Todos los estados</option>
-        {TASK_STATUS_ORDER.map((value) => (
+        {ALL_TASK_STATUSES.map((value) => (
           <option key={value} value={value}>
             {TASK_STATUS_LABELS[value]}
           </option>

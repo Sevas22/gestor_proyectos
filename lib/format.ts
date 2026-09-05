@@ -4,19 +4,42 @@ import { Priority, ProjectStatus, TaskStatus } from '@prisma/client'
 // igual en el tablero, en la tabla y en el feed de actividad.
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  BACKLOG: 'Backlog',
   TODO: 'Pendiente',
   IN_PROGRESS: 'En progreso',
   IN_REVIEW: 'En revisión',
   DONE: 'Completada',
 }
 
-/// Orden de las columnas del tablero.
-export const TASK_STATUS_ORDER: readonly TaskStatus[] = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE']
+/// Estados que sí son columnas del tablero. El tipo excluye BACKLOG a
+/// propósito, para que el compilador avise si alguien intenta pintarlo como una
+/// columna más: es un depósito aparte con su propia pantalla, y un backlog de
+/// cien elementos ahogaría el Kanban.
+export type BoardStatus = Exclude<TaskStatus, 'BACKLOG'>
+
+export const TASK_STATUS_ORDER: readonly BoardStatus[] = [
+  'TODO',
+  'IN_PROGRESS',
+  'IN_REVIEW',
+  'DONE',
+]
+
+/// Todos los estados, para los filtros y los desplegables donde sí hay que poder
+/// elegir el backlog.
+export const ALL_TASK_STATUSES: readonly TaskStatus[] = ['BACKLOG', ...TASK_STATUS_ORDER]
+
+/// Al sacar algo del backlog entra por aquí.
+export const FIRST_BOARD_STATUS: BoardStatus = 'TODO'
 
 /// Clases de Tailwind completas, no interpoladas. Tailwind analiza el código
 /// fuente en busca de nombres de clase literales: `bg-${color}-500` no genera
 /// ningún CSS y por eso la maqueta original salía en gris.
 export const TASK_STATUS_STYLES: Record<TaskStatus, { dot: string; chip: string; bar: string }> = {
+  BACKLOG: {
+    dot: 'bg-violet-400',
+    chip: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+    bar: 'bg-violet-400',
+  },
   TODO: {
     dot: 'bg-slate-400',
     chip: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',

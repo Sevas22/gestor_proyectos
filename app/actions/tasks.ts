@@ -6,7 +6,7 @@ import { TaskStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { assertProjectInOrg, assertTaskInOrg, requirePermission, PermissionError } from '@/lib/dal'
 import { taskSchema, fieldErrors, type ActionState } from '@/lib/validation'
-import { TASK_STATUS_LABELS } from '@/lib/format'
+import { FIRST_BOARD_STATUS, TASK_STATUS_LABELS } from '@/lib/format'
 
 function toState(error: unknown): ActionState {
   if (error instanceof PermissionError) return { ok: false, message: error.message }
@@ -205,6 +205,7 @@ export async function moveTaskAction(taskId: string, status: TaskStatus, beforeT
   }
 
   revalidatePath(`/projects/${existing.projectId}`)
+  revalidatePath(`/projects/${existing.projectId}/backlog`)
   revalidatePath('/tasks')
   revalidatePath('/dashboard')
 }
@@ -236,4 +237,110 @@ export async function deleteTaskAction(_prev: ActionState, formData: FormData): 
   revalidatePath('/tasks')
   revalidatePath('/dashboard')
   return { ok: true, message: 'Tarea eliminada.' }
+}
+
+/// Saca un elemento del backlog y lo mete en el tablero, al final de la primera
+/// columna.
+///
+/// Es su propia acción y no una llamada a moveTaskAction porque el gesto es
+/// distinto: allí se arrastra a un sitio concreto, aquí se promociona sin
+/// decidir todavía dónde encaja. El permiso es el mismo, task:move.
+export async function promoteFromBacklogAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const id = String(formData.get('id') ?? '')
+
+  let projectId = ''
+  try {
+    const viewer = await requirePermission('task:move')
+    const existing = await assertTaskInOrg(id, viewer.orgId)
+    projectId = existing.projectId
+
+    if (existing.status !== 'BACKLOG') {
+      return { ok: false, message: 'Esa tarea ya está en el tablero.' }
+    }
+
+    const last = await prisma.task.findFirst({
+      where: { projectId, status: FIRST_BOARD_STATUS },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    })
+
+    const task = await prisma.task.update({
+      where: { id },
+      data: { status: FIRST_BOARD_STATUS, position: (last?.position ?? 0) + 1 },
+      select: { id: true, number: true, project: { select: { key: true } } },
+    })
+
+    await prisma.activity.create({
+      data: {
+        type: 'TASK_STATUS_CHANGED',
+        summary: `sacó ${task.project.key}-${task.number} del backlog a ${TASK_STATUS_LABELS[FIRST_BOARD_STATUS]}`,
+        actorId: viewer.id,
+        orgId: viewer.orgId,
+        projectId,
+        taskId: task.id,
+      },
+    })
+  } catch (error) {
+    return toState(error)
+  }
+
+  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/projects/${projectId}/backlog`)
+  revalidatePath('/tasks')
+  revalidatePath('/dashboard')
+  return { ok: true, message: 'Movida al tablero.' }
+}
+
+/// Devuelve una tarea del tablero al backlog. El camino de vuelta: si algo se
+/// planificó antes de tiempo, no hay que borrarlo para sacarlo del tablero.
+export async function sendToBacklogAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const id = String(formData.get('id') ?? '')
+
+  let projectId = ''
+  try {
+    const viewer = await requirePermission('task:move')
+    const existing = await assertTaskInOrg(id, viewer.orgId)
+    projectId = existing.projectId
+
+    if (existing.status === 'BACKLOG') {
+      return { ok: false, message: 'Esa tarea ya está en el backlog.' }
+    }
+
+    const last = await prisma.task.findFirst({
+      where: { projectId, status: 'BACKLOG' },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    })
+
+    const task = await prisma.task.update({
+      where: { id },
+      data: { status: 'BACKLOG', position: (last?.position ?? 0) + 1 },
+      select: { id: true, number: true, project: { select: { key: true } } },
+    })
+
+    await prisma.activity.create({
+      data: {
+        type: 'TASK_STATUS_CHANGED',
+        summary: `devolvió ${task.project.key}-${task.number} al backlog`,
+        actorId: viewer.id,
+        orgId: viewer.orgId,
+        projectId,
+        taskId: task.id,
+      },
+    })
+  } catch (error) {
+    return toState(error)
+  }
+
+  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/projects/${projectId}/backlog`)
+  revalidatePath('/tasks')
+  revalidatePath('/dashboard')
+  return { ok: true, message: 'Devuelta al backlog.' }
 }

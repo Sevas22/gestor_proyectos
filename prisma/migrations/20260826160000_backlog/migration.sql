@@ -1,0 +1,12 @@
+-- Añade el estado BACKLOG: el depósito de trabajo que todavía no entra al
+-- tablero.
+--
+-- Se inserta BEFORE 'TODO' y no al final del enum a propósito. Postgres ordena
+-- los valores de un enum por su posición, no alfabéticamente, y Prisma se apoya
+-- en eso para `orderBy: { status: 'asc' }`. Añadirlo al final pondría el backlog
+-- después de «Completada» en cualquier lista ordenada por estado.
+--
+-- ALTER TYPE ... ADD VALUE se permite dentro de una transacción desde
+-- PostgreSQL 12, siempre que el valor nuevo no se use en esa misma transacción.
+-- Esta migración solo lo declara; nada lo usa todavía.
+ALTER TYPE "TaskStatus" ADD VALUE 'BACKLOG' BEFORE 'TODO';

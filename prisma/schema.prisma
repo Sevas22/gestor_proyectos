@@ -34,8 +34,13 @@ enum ProjectStatus {
   ARCHIVED
 }
 
-/// Columnas del tablero Kanban, en orden.
+/// Estado de una tarea.
+///
+/// BACKLOG es el depósito de trabajo que todavía no entra al tablero: no es una
+/// columna del Kanban ni cuenta como trabajo comprometido en las métricas. Va
+/// primero en el enum para que ordenar por estado lo ponga antes que lo demás.
 enum TaskStatus {
+  BACKLOG
   TODO
   IN_PROGRESS
   IN_REVIEW

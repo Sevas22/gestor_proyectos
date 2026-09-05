@@ -9,7 +9,7 @@ import {
   PRIORITY_LABELS,
   PRIORITY_STYLES,
   TASK_STATUS_LABELS,
-  TASK_STATUS_ORDER,
+  ALL_TASK_STATUSES,
   TASK_STATUS_STYLES,
   formatShortDate,
   isOverdue,
@@ -28,7 +28,7 @@ type Props = {
 }
 
 function parseStatus(value?: string): TaskStatus | undefined {
-  return TASK_STATUS_ORDER.includes(value as TaskStatus) ? (value as TaskStatus) : undefined
+  return ALL_TASK_STATUSES.includes(value as TaskStatus) ? (value as TaskStatus) : undefined
 }
 
 export default async function TasksPage({ searchParams }: Props) {

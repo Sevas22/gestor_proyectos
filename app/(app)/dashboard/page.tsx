@@ -43,7 +43,11 @@ export default async function DashboardPage() {
     getOrgTasks(viewer.orgId, { assigneeId: viewer.id }),
   ])
 
-  const myOpenTasks = myTasks.filter((task) => task.status !== 'DONE').slice(0, 5)
+  // Sin backlog: la cifra de «Asignadas a ti» ya lo excluye, y la lista debe
+  // contar lo mismo que el número que tiene encima.
+  const myOpenTasks = myTasks
+    .filter((task) => task.status !== 'DONE' && task.status !== 'BACKLOG')
+    .slice(0, 5)
   const activeProjects = projects.filter((p) => p.status === 'ACTIVE').slice(0, 4)
 
   const metrics = [
@@ -162,13 +166,23 @@ export default async function DashboardPage() {
                       {stats.inProgress} en progreso · {stats.inReview} en revisión
                       <br />
                       {plural(stats.memberCount, 'persona')} en el equipo
+                      {stats.backlog > 0 && (
+                        <>
+                          <br />
+                          <span className="text-violet-600 dark:text-violet-400">
+                            {plural(stats.backlog, 'elemento')} en backlog, sin comprometer
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
 
+                {/* Solo las columnas del tablero: el backlog no es trabajo
+                    comprometido y tiene su propia cifra más abajo. */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {TASK_STATUS_ORDER.map((status) => {
-                    const value = {
+                    const value: number = {
                       TODO: stats.todo,
                       IN_PROGRESS: stats.inProgress,
                       IN_REVIEW: stats.inReview,

@@ -90,6 +90,11 @@ botón de crear ni podrá arrastrar tarjetas.
 - **Tablero Kanban.** Cuatro columnas con arrastrar y soltar. El movimiento se
   pinta al instante y se confirma contra el servidor; si falla, la tarjeta vuelve
   sola a su sitio.
+- **Backlog por proyecto.** Una pestaña junto al tablero con el trabajo que el
+  equipo todavía no se ha comprometido a hacer. Se ordena arrastrando —lo de
+  arriba es lo siguiente que entrará— y un botón lo pasa al tablero. El camino
+  de vuelta también existe: una tarea planificada antes de tiempo se devuelve al
+  backlog sin borrarla.
 - **Tareas.** Título, descripción, responsable, prioridad, fecha límite y
   comentarios.
 - **Roles propios.** Cada equipo crea los suyos con el nombre que quiera y marca
@@ -128,6 +133,25 @@ que hay tres salvaguardas, todas en el servidor:
 
 Además, un rol que tiene gente asignada no se puede eliminar — hay que
 reasignarla primero.
+
+## El backlog
+
+Un elemento del backlog **es una tarea normal** en un quinto estado, `BACKLOG`.
+Eso le da gratis responsable, prioridad, fecha, comentarios y actividad, sin
+duplicar modelo ni pantallas. Lo que cambia es cómo lo cuenta el resto de la
+aplicación:
+
+- **No es una columna del tablero.** El tipo `BoardStatus` de
+  [`lib/format.ts`](lib/format.ts) excluye `BACKLOG` a propósito, así que el
+  compilador avisa si alguien intenta pintarlo como una columna más. Un backlog
+  de cien elementos ahogaría el Kanban.
+- **No cuenta como trabajo comprometido.** Queda fuera del progreso del
+  proyecto, de las tareas abiertas, de las que van fuera de plazo y de la carga
+  de cada persona. Si contara, añadir ideas al backlog haría *bajar* el
+  porcentaje de un proyecto en el que nadie ha dejado de avanzar.
+
+El orden dentro del backlog usa el mismo campo `position` que el tablero,
+acotado al estado: reordenar es la misma operación que arrastrar una tarjeta.
 
 ### El código del equipo
 
@@ -199,6 +223,11 @@ Neon de producción (no solo compilando):
   intacta. Un Gestor de proyecto ve la pantalla de roles en solo lectura, y al
   dar de alta a alguien solo se le ofrecen los roles cuyos permisos él mismo
   tiene: ni Administrador ni ninguno con permisos que le falten.
+- **Backlog:** promocionado un elemento al tablero y comprobado que las cifras
+  cuadran en las dos pantallas — total 15→16, backlog 5→4, Pendiente 7→8 — y que
+  el progreso solo se movió al entrar la tarea, no al añadirla al backlog.
+  Probado también el camino de vuelta. Un observador ve el backlog pero sin
+  botones de añadir ni promocionar, y los elementos no son arrastrables.
 - **Sobre el pooler de Neon:** las transacciones interactivas de Prisma
   (`$transaction`, que usa la creación de tareas para numerarlas sin colisiones)
   funcionan sobre la cadena con `-pooler`. No hace falta añadir `pgbouncer=true`.
@@ -241,7 +270,7 @@ app/actions/                  server actions: auth, proyectos, tareas,
 app/(auth)/                   acceso y registro
 app/(app)/                    panel: resumen, proyectos, tareas, equipo, ajustes
 
-components/board/             tablero Kanban, diálogos de tarea, detalle
+components/board/             tablero Kanban, backlog, diálogos de tarea, detalle
 components/projects/          formulario y borrado de proyectos
 components/team/              alta de miembros y fila de miembro
 components/ui/                piezas reutilizables: diálogo, campos, avatar

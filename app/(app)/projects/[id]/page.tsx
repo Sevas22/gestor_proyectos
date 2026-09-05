@@ -5,7 +5,14 @@ import { ArrowLeft, CalendarDays, Users } from 'lucide-react'
 
 import { requireViewer } from '@/lib/dal'
 import { can } from '@/lib/permissions'
-import { getOrgMembers, getProject, getProjectOptions, getProjectTasks, getTaskDetail } from '@/lib/queries'
+import {
+  getOrgMembers,
+  getProject,
+  getProjectBacklog,
+  getProjectOptions,
+  getProjectTasks,
+  getTaskDetail,
+} from '@/lib/queries'
 import {
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_STYLES,
@@ -17,6 +24,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Badge, Progress } from '@/components/ui/primitives'
 import { ProjectBoard } from '@/components/board/project-board'
+import { ProjectTabs } from '@/components/projects/project-tabs'
 import { ProjectDialog } from '@/components/projects/project-dialog'
 import { DeleteProjectButton } from '@/components/projects/delete-project-button'
 import { TaskDetail } from '@/components/board/task-detail'
@@ -43,8 +51,9 @@ export default async function ProjectPage({ params, searchParams }: Props) {
   // acaba aquí: no existe desde el punto de vista de quien mira.
   if (!project) notFound()
 
-  const [tasks, members, projects, taskDetail] = await Promise.all([
+  const [tasks, backlog, members, projects, taskDetail] = await Promise.all([
     getProjectTasks(project.id, viewer.orgId),
+    getProjectBacklog(project.id, viewer.orgId),
     getOrgMembers(viewer.orgId),
     getProjectOptions(viewer.orgId),
     taskId ? getTaskDetail(taskId, viewer.orgId) : Promise.resolve(null),
@@ -143,6 +152,8 @@ export default async function ProjectPage({ params, searchParams }: Props) {
         </div>
         <Progress value={progress} />
       </div>
+
+      <ProjectTabs projectId={project.id} backlogCount={backlog.length} boardCount={tasks.length} />
 
       <ProjectBoard
         tasks={tasks}

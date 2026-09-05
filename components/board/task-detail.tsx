@@ -2,11 +2,11 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, Pencil, Send, Trash2, User2 } from 'lucide-react'
+import { CalendarDays, Layers, Pencil, Send, Trash2, User2 } from 'lucide-react'
 import type { Priority, TaskStatus } from '@prisma/client'
 
 import { createCommentAction } from '@/app/actions/comments'
-import { deleteTaskAction } from '@/app/actions/tasks'
+import { deleteTaskAction, sendToBacklogAction } from '@/app/actions/tasks'
 import { can, type Permission } from '@/lib/permissions'
 import { EMPTY_STATE } from '@/lib/validation'
 import {
@@ -66,6 +66,7 @@ export function TaskDetail({
   const [editing, setEditing] = useState(false)
   const [commentState, commentAction] = useActionState(createCommentAction, EMPTY_STATE)
   const [deleteState, deleteAction] = useActionState(deleteTaskAction, EMPTY_STATE)
+  const [backlogState, backlogAction] = useActionState(sendToBacklogAction, EMPTY_STATE)
   const formRef = useRef<HTMLFormElement>(null)
   const commentsEndRef = useRef<HTMLDivElement>(null)
 
@@ -85,6 +86,15 @@ export function TaskDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deleteState])
 
+  // Al mandarla al backlog ya no pertenece a esta vista: se cierra el panel y se
+  // vuelve a pedir el árbol para que el tablero deje de mostrarla.
+  useEffect(() => {
+    if (!backlogState.ok) return
+    close()
+    router.refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backlogState])
+
   const editValues: TaskFormValues = {
     id: task.id,
     title: task.title,
@@ -98,6 +108,7 @@ export function TaskDetail({
 
   const canEdit = can(permissions, 'task:update')
   const canDelete = can(permissions, 'task:delete')
+  const canMove = can(permissions, 'task:move')
   const canComment = can(permissions, 'comment:create')
   const late = isOverdue(task.dueDate) && task.status !== 'DONE'
 
@@ -230,8 +241,8 @@ export function TaskDetail({
             )}
           </div>
 
-          {(canEdit || canDelete) && (
-            <div className="flex justify-between gap-2 border-t border-border pt-5">
+          {(canEdit || canDelete || canMove) && (
+            <div className="flex flex-wrap justify-between gap-2 border-t border-border pt-5">
               {canDelete ? (
                 <form action={deleteAction}>
                   <input type="hidden" name="id" value={task.id} />
@@ -243,6 +254,19 @@ export function TaskDetail({
               ) : (
                 <span />
               )}
+
+              {/* El camino de vuelta del backlog. Si algo se planificó antes de
+                  tiempo, sacarlo del tablero no debería obligar a borrarlo. */}
+              {canMove && task.status !== 'BACKLOG' && (
+                <form action={backlogAction} className="ml-auto">
+                  <input type="hidden" name="id" value={task.id} />
+                  <SubmitButton variant="outline" pendingLabel="Moviendo…">
+                    <Layers className="size-4" />
+                    Al backlog
+                  </SubmitButton>
+                </form>
+              )}
+
               {canEdit && (
                 <button
                   type="button"
@@ -257,6 +281,9 @@ export function TaskDetail({
           )}
 
           {deleteState.message && !deleteState.ok && <FormMessage>{deleteState.message}</FormMessage>}
+          {backlogState.message && !backlogState.ok && (
+            <FormMessage>{backlogState.message}</FormMessage>
+          )}
         </div>
       </Dialog>
 

@@ -79,6 +79,14 @@ const TASKS: {
   { project: 'INF', title: 'Copias de seguridad automáticas', description: 'Volcado diario a almacenamiento externo con retención de 30 días.', status: TaskStatus.DONE, priority: Priority.URGENT, assignee: 1, dueInDays: null },
   { project: 'INF', title: 'Alertas de latencia', description: 'Avisar si el percentil 95 supera los 500 ms durante cinco minutos.', status: TaskStatus.IN_PROGRESS, priority: Priority.HIGH, assignee: 0, dueInDays: -1 },
   { project: 'INF', title: 'Rotar credenciales de base de datos', description: 'Y documentar el procedimiento para que no dependa de una persona.', status: TaskStatus.TODO, priority: Priority.URGENT, assignee: 0, dueInDays: 2 },
+
+  // Backlog: trabajo identificado pero todavía sin comprometer. No sale en el
+  // tablero ni cuenta en el progreso del proyecto.
+  { project: 'WEB', title: 'Buscador global con atajo de teclado', description: 'Cmd+K para saltar a cualquier proyecto o tarea sin usar el ratón.', status: TaskStatus.BACKLOG, priority: Priority.MEDIUM, assignee: null, dueInDays: null },
+  { project: 'WEB', title: 'Exportar el tablero a CSV', description: 'Lo pidió administración para los informes mensuales.', status: TaskStatus.BACKLOG, priority: Priority.LOW, assignee: null, dueInDays: null },
+  { project: 'API', title: 'Webhooks de eventos de tarea', description: 'Avisar a sistemas externos cuando una tarea cambia de estado.', status: TaskStatus.BACKLOG, priority: Priority.HIGH, assignee: null, dueInDays: null },
+  { project: 'API', title: 'Caché de las consultas del panel', description: 'El resumen hace siete consultas en cada carga.', status: TaskStatus.BACKLOG, priority: Priority.MEDIUM, assignee: 3, dueInDays: null },
+  { project: 'MOB', title: 'Widget para la pantalla de inicio', description: 'Ver las tareas del día sin abrir la aplicación.', status: TaskStatus.BACKLOG, priority: Priority.LOW, assignee: null, dueInDays: null },
 ]
 
 const COMMENTS = [
@@ -271,6 +279,9 @@ no verá ningún botón de crear ni podrá mover tarjetas.
 
 Hay además una solicitud sin resolver (Pablo Herrera). Entra como
 ana@nucleus.test y la verás en Equipo, esperando que le asignes un rol.
+
+Cada proyecto tiene su pestaña de Backlog junto al tablero, con trabajo
+identificado pero sin comprometer.
 `)
 }
 
