@@ -14,9 +14,9 @@ import {
   formatBytes,
   validateAttachment,
 } from '@/lib/attachments'
-import { relativeTime } from '@/lib/format'
 import { FormMessage } from '@/components/ui/primitives'
 import { SubmitButton } from '@/components/ui/submit-button'
+import { TimeAgo } from '@/components/ui/time-ago'
 
 export type AttachmentSummary = {
   id: string
@@ -110,7 +110,7 @@ export function AttachmentList({
                 <p className="tabular text-[11px] text-muted-foreground">
                   {fileKindLabel(file.mimeType)} · {formatBytes(file.size)} ·{' '}
                   {file.uploadedById === viewerId ? 'tú' : file.uploadedBy.name}{' '}
-                  {relativeTime(file.createdAt)}
+                  <TimeAgo date={file.createdAt} />
                 </p>
               </div>
 

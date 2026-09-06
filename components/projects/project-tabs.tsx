@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { KanbanSquare, Layers } from 'lucide-react'
+import { CalendarRange, KanbanSquare, Layers } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -14,10 +14,12 @@ export function ProjectTabs({
   projectId,
   backlogCount,
   boardCount,
+  storyCount = 0,
 }: {
   projectId: string
   backlogCount: number
   boardCount: number
+  storyCount?: number
 }) {
   const pathname = usePathname()
 
@@ -28,6 +30,12 @@ export function ProjectTabs({
       label: 'Backlog',
       icon: Layers,
       count: backlogCount,
+    },
+    {
+      href: `/projects/${projectId}/cronograma`,
+      label: 'Cronograma',
+      icon: CalendarRange,
+      count: storyCount,
     },
   ]
 

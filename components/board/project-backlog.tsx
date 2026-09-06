@@ -7,7 +7,7 @@ import type { Permission } from '@/lib/permissions'
 import { TaskDialog, type TaskFormValues } from '@/components/board/task-dialog'
 import { BacklogList } from '@/components/board/backlog-list'
 import type { BoardTask } from '@/components/board/kanban-board'
-import type { MemberOption, ProjectOption } from '@/components/board/project-board'
+import type { MemberOption, ProjectOption, StoryOption } from '@/components/board/project-board'
 
 /// Une la lista del backlog con el diálogo de creación, igual que ProjectBoard
 /// hace con el tablero. Lo que se crea aquí nace en estado BACKLOG.
@@ -16,12 +16,14 @@ export function ProjectBacklog({
   permissions,
   members,
   projects,
+  stories,
   projectId,
 }: {
   tasks: BoardTask[]
   permissions: Permission[]
   members: MemberOption[]
   projects: ProjectOption[]
+  stories: StoryOption[]
   projectId: string
 }) {
   const router = useRouter()
@@ -48,6 +50,7 @@ export function ProjectBacklog({
         onClose={() => setCreating(false)}
         members={members}
         projects={projects}
+        stories={stories}
         values={{ projectId, status: 'BACKLOG' } satisfies TaskFormValues}
       />
     </>

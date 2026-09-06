@@ -90,6 +90,108 @@ const TASKS: {
   { project: 'MOB', title: 'Widget para la pantalla de inicio', description: 'Ver las tareas del día sin abrir la aplicación.', status: TaskStatus.BACKLOG, priority: Priority.LOW, assignees: [], dueInDays: null },
 ]
 
+/// Historias de usuario del cronograma. `tasks` son títulos de tareas de TASKS
+/// que cuelgan de ella.
+const STORIES: {
+  project: string
+  title: string
+  asA: string
+  iWant: string
+  soThat: string
+  description: string
+  status: 'PLANNED' | 'IN_PROGRESS' | 'DONE'
+  startsInDays: number | null
+  durationDays: number
+  tasks: string[]
+}[] = [
+  {
+    project: 'WEB',
+    title: 'Alta de cuenta en dos pasos',
+    asA: 'persona que llega por primera vez',
+    iWant: 'crear mi cuenta sin rellenar cinco pantallas',
+    soThat: 'pueda empezar a usar el producto el mismo día',
+    description:
+      '- El correo se valida antes de pedir la contraseña\n- No más de dos pantallas hasta entrar\n- Se puede volver atrás sin perder lo escrito',
+    status: 'IN_PROGRESS',
+    startsInDays: -4,
+    durationDays: 14,
+    tasks: ['Rediseñar el flujo de alta', 'Pruebas E2E de autenticación'],
+  },
+  {
+    project: 'WEB',
+    title: 'El panel se entiende estando vacío',
+    asA: 'persona que acaba de crear su equipo',
+    iWant: 'que cada lista vacía me diga qué hacer',
+    soThat: 'no me quede mirando una pantalla en blanco',
+    description: '- Ninguna lista vacía se limita a decir que no hay nada',
+    status: 'PLANNED',
+    startsInDays: 12,
+    durationDays: 8,
+    tasks: ['Estados vacíos del panel', 'Accesibilidad del menú lateral'],
+  },
+  {
+    project: 'API',
+    title: 'Cada quien toca solo lo suyo',
+    asA: 'responsable del equipo',
+    iWant: 'que los permisos se apliquen en el servidor',
+    soThat: 'nadie pueda saltárselos llamando a la API directamente',
+    description:
+      '- Toda escritura comprueba el permiso antes de tocar la base\n- Un observador no modifica nada ni por API',
+    status: 'DONE',
+    startsInDays: -20,
+    durationDays: 16,
+    tasks: ['Validar permisos por rol', 'Registro estructurado'],
+  },
+  {
+    project: 'API',
+    title: 'La API aguanta el volumen',
+    asA: 'equipo de operaciones',
+    iWant: 'paginación y límite de peticiones',
+    soThat: 'el servicio no se degrade cuando crezcan los datos',
+    description: '- El listado pagina por cursor\n- El acceso limita intentos por IP',
+    status: 'PLANNED',
+    startsInDays: 6,
+    durationDays: 21,
+    tasks: ['Paginación en el listado de tareas', 'Límite de peticiones por IP'],
+  },
+  {
+    project: 'MOB',
+    title: 'Consultar el trabajo desde el móvil',
+    asA: 'persona del equipo fuera de la oficina',
+    iWant: 'ver mis tareas del día en el teléfono',
+    soThat: 'sepa qué me toca sin abrir el portátil',
+    description: '- Pantalla de inicio con lo asignado y la actividad reciente',
+    status: 'IN_PROGRESS',
+    startsInDays: 2,
+    durationDays: 18,
+    tasks: ['Pantalla de inicio'],
+  },
+  {
+    project: 'INF',
+    title: 'Enterarse antes que el cliente',
+    asA: 'responsable de infraestructura',
+    iWant: 'alertas de latencia y copias automáticas',
+    soThat: 'un problema no se descubra por una queja',
+    description: '- Aviso si el percentil 95 pasa de 500 ms cinco minutos\n- Copia diaria con 30 días de retención',
+    status: 'IN_PROGRESS',
+    startsInDays: -10,
+    durationDays: 24,
+    tasks: ['Alertas de latencia', 'Copias de seguridad automáticas'],
+  },
+  {
+    project: 'MOB',
+    title: 'Avisos cuando algo me toca',
+    asA: 'persona del equipo',
+    iWant: 'que me avisen si me asignan una tarea',
+    soThat: 'no tenga que entrar a comprobarlo',
+    description: '',
+    status: 'PLANNED',
+    startsInDays: null,
+    durationDays: 0,
+    tasks: ['Notificaciones push'],
+  },
+]
+
 const COMMENTS = [
   { taskTitle: 'Validar permisos por rol', author: 0, body: 'Ojo con las server actions: se pueden llamar por POST sin pasar por la interfaz, así que la comprobación tiene que estar dentro de la acción, no solo en el componente.' },
   { taskTitle: 'Validar permisos por rol', author: 1, body: 'Hecho. La matriz está en lib/permissions.ts y cada acción llama a requirePermission antes de escribir.' },
@@ -225,6 +327,49 @@ async function main() {
     taskIds.set(template.title, task.id)
   }
 
+  // Historias del cronograma. Se crean después de las tareas para poder
+  // engancharlas por título.
+  const contadorHistorias = new Map<string, number>()
+  for (const plantilla of STORIES) {
+    const projectId = projects.get(plantilla.project)!
+    const number = (contadorHistorias.get(plantilla.project) ?? 0) + 1
+    contadorHistorias.set(plantilla.project, number)
+
+    const fechas =
+      plantilla.startsInDays === null
+        ? { startDate: null, endDate: null }
+        : {
+            startDate: daysFromNow(plantilla.startsInDays),
+            endDate: daysFromNow(plantilla.startsInDays + plantilla.durationDays),
+          }
+
+    const datos = {
+      title: plantilla.title,
+      asA: plantilla.asA,
+      iWant: plantilla.iWant,
+      soThat: plantilla.soThat,
+      description: plantilla.description,
+      status: plantilla.status,
+      ...fechas,
+      projectId,
+      createdById: users[0].id,
+    }
+
+    const existente = await prisma.story.findUnique({
+      where: { projectId_number: { projectId, number } },
+      select: { id: true },
+    })
+    const story = existente
+      ? await prisma.story.update({ where: { id: existente.id }, data: datos, select: { id: true } })
+      : await prisma.story.create({ data: { ...datos, number }, select: { id: true } })
+
+    // Enganchar sus tareas por título dentro del mismo proyecto.
+    await prisma.task.updateMany({
+      where: { projectId, title: { in: plantilla.tasks } },
+      data: { storyId: story.id },
+    })
+  }
+
   // Los comentarios no tienen clave natural, así que se limpian y se recrean.
   await prisma.comment.deleteMany({ where: { task: { project: { orgId: org.id } } } })
   for (const comment of COMMENTS) {
@@ -294,7 +439,8 @@ Hay además una solicitud sin resolver (Pablo Herrera). Entra como
 ana@nucleus.test y la verás en Equipo, esperando que le asignes un rol.
 
 Cada proyecto tiene su pestaña de Backlog junto al tablero, con trabajo
-identificado pero sin comprometer.
+identificado pero sin comprometer, y una de Cronograma con las historias de
+usuario colocadas en una línea de tiempo.
 `)
 }
 

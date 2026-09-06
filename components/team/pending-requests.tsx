@@ -6,10 +6,10 @@ import { Check, Clock3, X } from 'lucide-react'
 
 import { approveMemberAction, rejectMemberAction } from '@/app/actions/members'
 import { EMPTY_STATE } from '@/lib/validation'
-import { relativeTime } from '@/lib/format'
 import { Avatar, FormMessage } from '@/components/ui/primitives'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { RoleSelect, type RoleOption } from '@/components/team/role-select'
+import { TimeAgo } from '@/components/ui/time-ago'
 
 export type PendingRequest = {
   id: string
@@ -44,7 +44,7 @@ function RequestRow({ request, roles }: { request: PendingRequest; roles: RoleOp
           <p className="truncate text-xs text-muted-foreground">{request.user.email}</p>
           <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <Clock3 className="size-3" />
-            Solicitado {relativeTime(request.joinedAt)}
+            Solicitado <TimeAgo date={request.joinedAt} />
           </p>
         </div>
 

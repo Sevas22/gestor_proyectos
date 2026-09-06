@@ -25,8 +25,23 @@ function readForm(formData: FormData) {
     status: formData.get('status') ?? 'TODO',
     priority: formData.get('priority') ?? 'MEDIUM',
     assigneeIds: formData.getAll('assigneeIds').map(String).filter(Boolean),
+    storyId: formData.get('storyId') ?? '',
     dueDate: formData.get('dueDate') ?? '',
   }
+}
+
+/// Comprueba que la historia pertenece al mismo proyecto que la tarea.
+///
+/// Sin esto, el id de una historia de otro proyecto —o de otra organización—
+/// serviría para colgar una tarea donde no le corresponde.
+async function assertStoryInProject(storyId: string | null, projectId: string) {
+  if (!storyId) return null
+  const story = await prisma.story.findFirst({
+    where: { id: storyId, projectId },
+    select: { id: true },
+  })
+  if (!story) throw new Error('Esa historia no pertenece a este proyecto.')
+  return storyId
 }
 
 /// Comprueba que todos los responsables pertenecen a la organización y están
@@ -48,13 +63,14 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
   const parsed = taskSchema.safeParse(readForm(formData))
   if (!parsed.success) return fieldErrors(parsed.error)
 
-  const { projectId, assigneeIds, status, ...rest } = parsed.data
+  const { projectId, assigneeIds, storyId, status, ...rest } = parsed.data
 
   let createdId = ''
   try {
     const viewer = await requirePermission('task:create')
     await assertProjectInOrg(projectId, viewer.orgId)
     await assertAssigneesInOrg(assigneeIds, viewer.orgId)
+    await assertStoryInProject(storyId, projectId)
 
     createdId = await prisma.$transaction(async (tx) => {
       // El correlativo por proyecto (WEB-1, WEB-2...) se calcula dentro de la
@@ -77,6 +93,7 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
           status,
           projectId,
           assignees: { connect: assigneeIds.map((id) => ({ id })) },
+          storyId,
           number: (last?.number ?? 0) + 1,
           position: (first?.position ?? 0) - 1,
           createdById: viewer.id,
@@ -103,6 +120,7 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
 
   revalidatePath(`/projects/${projectId}`)
   revalidatePath(`/projects/${projectId}/backlog`)
+  revalidatePath(`/projects/${projectId}/cronograma`)
   revalidatePath('/tasks')
   revalidatePath('/dashboard')
   // El id vuelve al cliente para que pueda subir los archivos que se eligieron
@@ -115,19 +133,20 @@ export async function updateTaskAction(_prev: ActionState, formData: FormData): 
   const parsed = taskSchema.safeParse(readForm(formData))
   if (!parsed.success) return fieldErrors(parsed.error)
 
-  const { projectId, assigneeIds, ...rest } = parsed.data
+  const { projectId, assigneeIds, storyId, ...rest } = parsed.data
 
   try {
     const viewer = await requirePermission('task:update')
     const existing = await assertTaskInOrg(id, viewer.orgId)
     await assertProjectInOrg(projectId, viewer.orgId)
     await assertAssigneesInOrg(assigneeIds, viewer.orgId)
+    await assertStoryInProject(storyId, projectId)
 
     const task = await prisma.task.update({
       where: { id },
       // `set` y no `connect`: la lista que llega es la definitiva, así que
       // desmarcar a alguien en el formulario tiene que quitarlo de verdad.
-      data: { ...rest, projectId, assignees: { set: assigneeIds.map((id) => ({ id })) } },
+      data: { ...rest, projectId, storyId, assignees: { set: assigneeIds.map((id) => ({ id })) } },
       select: { id: true, number: true, title: true, status: true, project: { select: { key: true } } },
     })
 

@@ -71,6 +71,12 @@ ninguna nueva:
 pnpm db:deploy
 ```
 
+Las migraciones que tocan datos ya existentes —los roles propios, el backlog,
+los varios responsables, las historias de usuario— están escritas a mano y por
+pasos, no generadas por Prisma: traducen lo que hay antes de quitar la columna
+vieja y llevan una comprobación que aborta la transacción si las cuentas no
+cuadran. Aplicarlas dos veces es inofensivo; aplicarlas a medias no ocurre.
+
 > Se puede meter `prisma migrate deploy` en el comando de compilación de Vercel,
 > pero entonces un fallo de migración rompe el despliegue entero y deja la
 > aplicación anterior servida con un esquema a medias. Es preferible aplicarlas

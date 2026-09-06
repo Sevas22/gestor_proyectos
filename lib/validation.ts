@@ -1,4 +1,4 @@
-import { Priority, ProjectStatus, TaskStatus } from '@prisma/client'
+import { Priority, ProjectStatus, StoryStatus, TaskStatus } from '@prisma/client'
 import { parseDateOnly } from '@/lib/format'
 import { ALL_PERMISSIONS } from '@/lib/permissions'
 import { z } from 'zod'
@@ -76,6 +76,46 @@ export const projectSchema = z.object({
     }),
 })
 
+const fechaOpcional = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value, ctx) => {
+    if (!value) return null
+    const parsed = parseDateOnly(value)
+    if (!parsed) {
+      ctx.addIssue({ code: 'custom', message: 'Fecha inválida.' })
+      return z.NEVER
+    }
+    return parsed
+  })
+
+export const storySchema = z
+  .object({
+    title: trimmed(140).min(3, 'Ponle un título a la historia.'),
+    asA: trimmed(80).default(''),
+    iWant: trimmed(200).default(''),
+    soThat: trimmed(200).default(''),
+    description: trimmed(2000).default(''),
+    projectId: z.string().min(1, 'Elige un proyecto.'),
+    status: z.enum(StoryStatus).default('PLANNED'),
+    colorSeed: z.coerce.number().int().min(0).max(5).default(0),
+    startDate: fechaOpcional,
+    endDate: fechaOpcional,
+  })
+  // Una barra que acaba antes de empezar no se puede dibujar, y sobre todo no
+  // significa nada. Se rechaza aquí en vez de dejar que el cronograma pinte algo
+  // absurdo.
+  .refine((d) => !d.startDate || !d.endDate || d.endDate >= d.startDate, {
+    message: 'La fecha de fin no puede ser anterior a la de inicio.',
+    path: ['endDate'],
+  })
+  // Media fecha no coloca nada en el cronograma: o las dos, o ninguna.
+  .refine((d) => Boolean(d.startDate) === Boolean(d.endDate), {
+    message: 'Pon las dos fechas o ninguna: con solo una no se puede programar.',
+    path: ['endDate'],
+  })
+
 export const taskSchema = z.object({
   title: trimmed(140).min(3, 'Describe la tarea en al menos 3 caracteres.'),
   description: trimmed(2000).default(''),
@@ -89,6 +129,11 @@ export const taskSchema = z.object({
     .default([])
     // Marcar dos veces a la misma persona no debería duplicar la asignación.
     .transform((ids) => [...new Set(ids)]),
+  // Cadena vacía = suelta, sin historia. El <select> no puede emitir null.
+  storyId: z
+    .string()
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : null)),
   // parseDateOnly interpreta "2026-09-30" como medianoche local, no UTC.
   // El error se emite desde el transform: si solo se comprobara el resultado,
   // una fecha ilegible sería indistinguible de un campo vacío y se guardaría

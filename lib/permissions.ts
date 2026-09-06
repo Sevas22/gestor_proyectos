@@ -8,6 +8,9 @@ export type Permission =
   | 'project:create'
   | 'project:update'
   | 'project:delete'
+  | 'story:create'
+  | 'story:update'
+  | 'story:delete'
   | 'task:create'
   | 'task:update'
   | 'task:move'
@@ -50,6 +53,27 @@ export const PERMISSION_CATALOG: {
         key: 'project:delete',
         label: 'Eliminar proyectos',
         description: 'Borrar un proyecto con todas sus tareas y comentarios.',
+      },
+    ],
+  },
+  {
+    group: 'Historias de usuario',
+    hint: 'La planificación: qué se va a hacer y cuándo, en el cronograma.',
+    items: [
+      {
+        key: 'story:create',
+        label: 'Crear historias',
+        description: 'Añadir historias de usuario y colocarlas en el cronograma.',
+      },
+      {
+        key: 'story:update',
+        label: 'Editar historias',
+        description: 'Cambiar el texto, el estado y las fechas de una historia.',
+      },
+      {
+        key: 'story:delete',
+        label: 'Eliminar historias',
+        description: 'Borrar una historia. Sus tareas se conservan, sueltas.',
       },
     ],
   },
@@ -185,6 +209,7 @@ export const LOCKOUT_PERMISSIONS: readonly Permission[] = ['member:update_role',
 /// trabajo. La interfaz los marca para que se vean.
 export const SENSITIVE_PERMISSIONS: readonly Permission[] = [
   'attachment:delete',
+  'story:delete',
   'member:update_role',
   'member:remove',
   'role:manage',
@@ -216,6 +241,9 @@ export const DEFAULT_ROLES: {
       'project:create',
       'project:update',
       'project:delete',
+      'story:create',
+      'story:update',
+      'story:delete',
       'task:create',
       'task:update',
       'task:move',

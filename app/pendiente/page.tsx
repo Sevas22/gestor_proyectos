@@ -4,7 +4,7 @@ import { Clock3, LogOut, RefreshCw } from 'lucide-react'
 
 import { resolveViewer, destinationFor } from '@/lib/dal'
 import { logoutAction } from '@/app/actions/auth'
-import { relativeTime } from '@/lib/format'
+import { TimeAgo } from '@/components/ui/time-ago'
 
 export const metadata: Metadata = { title: 'Pendiente de aprobación' }
 
@@ -34,7 +34,7 @@ export default async function PendientePage() {
 
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
           Pediste entrar a <span className="font-semibold text-foreground">{result.orgName}</span>{' '}
-          {relativeTime(result.since)}. Un administrador del equipo tiene que aprobarte y decidir
+          <TimeAgo date={result.since} />. Un administrador del equipo tiene que aprobarte y decidir
           qué rol tendrás. Hasta entonces no puedes ver los proyectos ni las tareas.
         </p>
 

@@ -8,6 +8,7 @@ import {
   getOrgMembers,
   getProject,
   getProjectBacklog,
+  getProjectStories,
   getProjectOptions,
   getProjectTasks,
   getTaskDetail,
@@ -37,13 +38,21 @@ export default async function BacklogPage({ params, searchParams }: Props) {
   const project = await getProject(id, viewer.orgId)
   if (!project) notFound()
 
-  const [backlog, boardTasks, members, projects, taskDetail] = await Promise.all([
+  const [backlog, stories, boardTasks, members, projects, taskDetail] = await Promise.all([
     getProjectBacklog(project.id, viewer.orgId),
+    getProjectStories(project.id, viewer.orgId),
     getProjectTasks(project.id, viewer.orgId),
     getOrgMembers(viewer.orgId),
     getProjectOptions(viewer.orgId),
     taskId ? getTaskDetail(taskId, viewer.orgId) : Promise.resolve(null),
   ])
+
+  const storyOptions = stories.map((s) => ({
+    id: s.id,
+    number: s.number,
+    title: s.title,
+    project: { key: s.project.key },
+  }))
 
   const memberOptions = members.map((m) => ({
     id: m.user.id,
@@ -85,6 +94,7 @@ export default async function BacklogPage({ params, searchParams }: Props) {
         projectId={project.id}
         backlogCount={backlog.length}
         boardCount={boardTasks.length}
+        storyCount={stories.length}
       />
 
       <p className="mb-5 max-w-2xl text-sm leading-6 text-muted-foreground">
@@ -98,6 +108,7 @@ export default async function BacklogPage({ params, searchParams }: Props) {
         permissions={viewer.permissions}
         members={memberOptions}
         projects={projects}
+        stories={storyOptions}
         projectId={project.id}
       />
 
@@ -108,6 +119,7 @@ export default async function BacklogPage({ params, searchParams }: Props) {
           viewerId={viewer.id}
           members={memberOptions}
           projects={projects}
+          stories={storyOptions}
         />
       )}
     </div>

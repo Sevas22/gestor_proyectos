@@ -100,6 +100,10 @@ botón de crear ni podrá arrastrar tarjetas.
   es que dos personas se repartan lo mismo.
 - **Archivos adjuntos.** PDF, imágenes, documentos de Office, texto y ZIP. Se
   pueden elegir varios al crear la tarea, o añadirlos después desde su detalle.
+- **Cronograma con historias de usuario.** Una tercera pestaña del proyecto con
+  la línea de tiempo: cada historia es una barra de su fecha de inicio a la de
+  fin, en escala de días, semanas o meses. Las tareas cuelgan de una historia,
+  así que la barra enseña también cuánto va hecho.
 - **Roles propios.** Cada equipo crea los suyos con el nombre que quiera y marca
   sus permisos uno a uno. El servidor los aplica de verdad.
 - **Actividad.** Cada cambio deja un registro con quién, qué y cuándo.
@@ -215,6 +219,46 @@ administrador ve en la pantalla de *Equipo*. **No es un secreto que dé acceso:*
 con él solo se consigue una solicitud en espera, y sin aprobación no se ve nada.
 Por eso se puede compartir por el canal que sea.
 
+## El cronograma y las historias de usuario
+
+Una **historia de usuario** es el para qué; una **tarea** es el cómo. El
+cronograma es la capa de arriba: responde «qué vamos a entregar y cuándo», y las
+tareas del tablero responden «qué hay que hacer para eso».
+
+Una historia guarda la fórmula en tres campos separados —`asA`, `iWant`,
+`soThat`— y no como un texto libre, para que la pantalla pueda componer siempre
+la misma frase y nadie tenga que recordar el formato:
+
+> **Como** responsable del equipo, **quiero** que los permisos se apliquen en el
+> servidor, **para** que nadie pueda saltárselos llamando a la API directamente.
+
+Las historias se numeran por proyecto igual que las tareas: `WEB-H1`, `WEB-H2`.
+
+### Por qué la relación es opcional
+
+`Task.storyId` admite nulo y se borra con `onDelete: SetNull`. Una tarea suelta
+—arreglar un fallo, actualizar una dependencia— no pertenece a ninguna historia,
+y obligar a inventarle una llenaría el cronograma de ruido. Por eso borrar una
+historia **no borra su trabajo**: las tareas se quedan huérfanas en el tablero,
+que es lo contrario de lo que haría un `Cascade`.
+
+### Cómo se dibujan las barras
+
+El gráfico usa posicionamiento absoluto sobre un contenedor con scroll, no una
+rejilla CSS. Una barra tiene que empezar y acabar en un día concreto, y con
+`left` y `width` en píxeles eso es aritmética directa a partir de un único
+número —el ancho de un día, que es lo único que cambia entre escalas—. Con
+`grid` habría que generar una columna por día y mapear cada barra a un rango de
+columnas: más frágil, y más lento cuando el rango abarca meses.
+
+Dentro de cada barra, una zona más oscura marca el avance —tareas terminadas
+sobre el total de la historia—, así que el estado no ocupa una columna aparte.
+Una línea roja marca el día de hoy.
+
+**Las historias sin fechas no se pierden.** Van a un bloque aparte debajo de la
+línea de tiempo: existen y se pueden abrir, pero no se pueden colocar hasta que
+alguien les ponga inicio y fin.
+
 ## Seguridad
 
 La autorización vive en **dos capas, y solo la segunda cuenta**:
@@ -291,6 +335,15 @@ Neon de producción (no solo compilando):
   `<script>` dentro se rechaza por tipo, y un archivo por encima del límite da el
   mensaje de tamaño sin romper la página. Creada además una tarea con dos
   responsables y dos archivos en un solo envío.
+- **Cronograma:** las barras caen en el día que les toca y miden lo que dicen
+  —comprobado leyendo `left` y `width` contra las fechas de la base—, y la zona
+  de avance coincide con las tareas terminadas (una historia con 1 de 2 pinta
+  justo el 50 %). Abrir una barra trae la historia correcta con su fórmula, sus
+  criterios y sus tareas. Un observador ve el cronograma completo pero sin botón
+  de crear y con el panel de detalle sin editar ni borrar: solo «Cerrar».
+- **Hidratación limpia:** la consola del build de producción no da un solo error
+  de React al cargar una página con el panel de detalle abierto. Antes daba
+  varios (#418 y #441) — ver más abajo.
 - **Sobre el pooler de Neon:** las transacciones interactivas de Prisma
   (`$transaction`, que usa la creación de tareas para numerarlas sin colisiones)
   funcionan sobre la cadena con `-pooler`. No hace falta añadir `pgbouncer=true`.
@@ -330,11 +383,12 @@ lib/format.ts                 etiquetas, colores y fechas en español
 lib/attachments.ts            límites y tipos permitidos de los adjuntos
 
 app/actions/                  server actions: auth, proyectos, tareas,
-                              comentarios y miembros
+                              historias, comentarios y miembros
 app/(auth)/                   acceso y registro
 app/(app)/                    panel: resumen, proyectos, tareas, equipo, ajustes
 
 components/board/             tablero Kanban, backlog, diálogos de tarea, detalle
+components/timeline/          cronograma: gráfico de barras, historia y detalle
 components/projects/          formulario y borrado de proyectos
 components/team/              alta de miembros y fila de miembro
 components/ui/                piezas reutilizables: diálogo, campos, avatar
@@ -359,6 +413,19 @@ components/ui/                piezas reutilizables: diálogo, campos, avatar
   ambos sentidos usando componentes locales. `parseDateOnly` además comprueba
   que la fecha construida sea la pedida, porque el constructor de `Date`
   desborda en silencio: `2026-02-30` se convertiría en el 2 de marzo.
+- **Lo que depende de la hora actual no se renderiza igual en los dos lados.**
+  «hace 5 minutos» se calcula contra `Date.now()`, así que el servidor escribe
+  un texto y el navegador calcula otro al hidratar: es un desajuste garantizado,
+  no una casualidad. Vive en `components/ui/time-ago.tsx`, que asume la
+  diferencia con `suppressHydrationWarning` y fuerza un render más al montar,
+  porque al suprimir el aviso React también deja puesto el texto viejo.
+- **Un portal tampoco puede aparecer de la nada al hidratar.** El diálogo
+  necesita `document`, y la guarda evidente —`if (typeof document === 'undefined')
+  return null`— hace que el servidor devuelva `null` y el primer render del
+  cliente devuelva el portal: dos árboles distintos en la misma posición, que es
+  exactamente la definición de fallo de hidratación. La guarda correcta es un
+  estado `montado`, para que el primer render del cliente también sea `null` y
+  el portal llegue en el siguiente.
 - **La concordancia de singular y plural pasa por `plural()`.** Repetir el
   ternario en cada pantalla es justo lo que produce «1 proyectos activos».
 

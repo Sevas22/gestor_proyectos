@@ -47,6 +47,17 @@ enum TaskStatus {
   DONE
 }
 
+/// Estado de una historia de usuario en el cronograma.
+///
+/// Es explícito y no derivado de sus tareas: una historia puede estar en curso
+/// sin que ninguna tarea lo esté todavía, y darla por cerrada es una decisión
+/// del equipo, no una consecuencia aritmética.
+enum StoryStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+}
+
 enum Priority {
   LOW
   MEDIUM
@@ -86,6 +97,7 @@ model User {
   memberships   Membership[]
   assignedTasks Task[]       @relation("TaskAssignees")
   createdTasks  Task[]       @relation("TaskCreator")
+  createdStories Story[]     @relation("StoryCreator")
   comments      Comment[]
   attachments   Attachment[]
   activities    Activity[]
@@ -168,10 +180,54 @@ model Project {
   updatedAt   DateTime      @updatedAt
 
   tasks      Task[]
+  stories    Story[]
   activities Activity[]
 
   @@unique([orgId, key])
   @@index([orgId])
+}
+
+/// Historia de usuario: la unidad que se planifica en el cronograma.
+///
+/// Va por encima de las tareas —una historia agrupa las tareas que hacen falta
+/// para cumplirla— y por debajo del proyecto.
+model Story {
+  id     String @id @default(cuid())
+  /// Correlativo por proyecto. Con project.key forma el identificador visible:
+  /// WEB-H1, WEB-H2. La H la distingue de una tarea.
+  number Int
+  title  String
+
+  /// Las tres partes de la fórmula «como X quiero Y para Z». Se guardan por
+  /// separado y no como un texto suelto para poder mostrarlas con formato y,
+  /// más adelante, buscar por rol.
+  asA    String @default("")
+  iWant  String @default("")
+  soThat String @default("")
+
+  /// Criterios de aceptación y cualquier otra nota.
+  description String      @default("")
+  status      StoryStatus @default(PLANNED)
+
+  /// Fechas del cronograma. Opcionales: una historia puede existir antes de
+  /// saber cuándo se hará, y entonces aparece sin programar en vez de con una
+  /// barra inventada.
+  startDate DateTime?
+  endDate   DateTime?
+
+  /// Índice de la paleta (lib/format.ts), para distinguir barras de un vistazo.
+  colorSeed   Int    @default(0)
+  projectId   String
+  createdById String
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("StoryCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  tasks     Task[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, number])
+  @@index([projectId, startDate])
 }
 
 model Task {
@@ -188,8 +244,14 @@ model Task {
   dueDate     DateTime?
   projectId   String
   createdById String
+  /// Historia a la que pertenece, si se le asignó una. Opcional: no todo el
+  /// trabajo nace de una historia de usuario.
+  storyId     String?
 
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // SetNull y no Cascade: borrar una historia no debe llevarse por delante el
+  // trabajo que ya se hizo para ella.
+  story     Story?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
   /// Varias personas pueden llevar la misma tarea. Es una relación implícita de
   /// Prisma: la tabla puente _TaskAssignees la gestiona él.
   assignees User[]   @relation("TaskAssignees")
@@ -203,6 +265,7 @@ model Task {
 
   @@unique([projectId, number])
   @@index([projectId, status])
+  @@index([storyId])
 }
 
 /// Archivo adjunto a una tarea.

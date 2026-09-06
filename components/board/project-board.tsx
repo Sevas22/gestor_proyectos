@@ -10,6 +10,7 @@ import { KanbanBoard, type BoardTask } from '@/components/board/kanban-board'
 
 export type MemberOption = { id: string; name: string; avatarSeed: number }
 export type ProjectOption = { id: string; name: string; key: string; colorSeed: number }
+export type StoryOption = { id: string; number: number; title: string; project: { key: string } }
 
 /// Une el tablero con el diálogo de creación/edición.
 ///
@@ -22,12 +23,14 @@ export function ProjectBoard({
   permissions,
   members,
   projects,
+  stories,
   projectId,
 }: {
   tasks: BoardTask[]
   permissions: Permission[]
   members: MemberOption[]
   projects: ProjectOption[]
+  stories: StoryOption[]
   projectId: string
 }) {
   const router = useRouter()
@@ -53,6 +56,7 @@ export function ProjectBoard({
         onClose={() => setCreating(null)}
         members={members}
         projects={projects}
+        stories={stories}
         values={initialValues}
       />
     </>

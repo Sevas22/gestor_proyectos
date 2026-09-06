@@ -16,12 +16,12 @@ import {
   TASK_STATUS_STYLES,
   formatDate,
   isOverdue,
-  relativeTime,
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Dialog } from '@/components/ui/dialog'
 import { Avatar, Badge, FormMessage, Input } from '@/components/ui/primitives'
 import { SubmitButton } from '@/components/ui/submit-button'
+import { TimeAgo } from '@/components/ui/time-ago'
 import { TaskDialog, type TaskFormValues } from '@/components/board/task-dialog'
 import { AttachmentList, type AttachmentSummary } from '@/components/board/attachment-list'
 
@@ -35,7 +35,9 @@ export type TaskDetailData = {
   dueDate: Date | null
   createdAt: Date
   projectId: string
+  storyId: string | null
   project: { id: string; key: string; name: string }
+  story: { id: string; number: number; title: string } | null
   assignees: { id: string; name: string; avatarSeed: number }[]
   createdBy: { id: string; name: string; avatarSeed: number }
   comments: {
@@ -56,12 +58,14 @@ export function TaskDetail({
   viewerId,
   members,
   projects,
+  stories = [],
 }: {
   task: TaskDetailData
   permissions: Permission[]
   viewerId: string
   members: { id: string; name: string; avatarSeed: number }[]
   projects: { id: string; name: string; key: string }[]
+  stories?: { id: string; number: number; title: string; project: { key: string } }[]
 }) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
@@ -104,6 +108,7 @@ export function TaskDetail({
     status: task.status,
     priority: task.priority,
     assigneeIds: task.assignees.map((a) => a.id),
+    storyId: task.storyId,
     dueDate: task.dueDate,
   }
 
@@ -172,7 +177,7 @@ export function TaskDetail({
                 <span className="text-sm">
                   {task.createdBy.name}
                   <span className="ml-1 text-xs text-muted-foreground">
-                    {relativeTime(task.createdAt)}
+                    <TimeAgo date={task.createdAt} />
                   </span>
                 </span>
               </div>
@@ -217,7 +222,7 @@ export function TaskDetail({
                           {comment.authorId === viewerId ? 'Tú' : comment.author.name}
                         </span>
                         <span className="text-[10px] text-muted-foreground">
-                          {relativeTime(comment.createdAt)}
+                          <TimeAgo date={comment.createdAt} />
                         </span>
                       </div>
                       <p className="mt-0.5 text-sm leading-5 whitespace-pre-wrap text-pretty">
@@ -304,6 +309,7 @@ export function TaskDetail({
         onClose={() => setEditing(false)}
         members={members}
         projects={projects}
+        stories={stories}
         values={editValues}
       />
     </>

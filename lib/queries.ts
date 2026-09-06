@@ -20,7 +20,9 @@ const taskCard = {
   dueDate: true,
   updatedAt: true,
   projectId: true,
+  storyId: true,
   project: { select: { id: true, key: true, name: true, colorSeed: true } },
+  story: { select: { id: true, number: true, title: true, colorSeed: true } },
   assignees: { select: { id: true, name: true, avatarSeed: true }, orderBy: { name: 'asc' } },
   // Nunca `attachments: true`: eso traería el contenido binario de cada archivo.
   // Solo hace falta el recuento para pintar el clip en la tarjeta.
@@ -136,6 +138,91 @@ export const getProject = cache(async (projectId: string, orgId: string) => {
       colorSeed: true,
       dueDate: true,
       createdAt: true,
+    },
+  })
+})
+
+/// Historias del proyecto para el cronograma, con el avance de sus tareas.
+///
+/// Las que ya tienen fechas van primero y en orden cronológico; las que no,
+/// detrás, porque la lista de «sin programar» se muestra aparte.
+export const getProjectStories = cache(async (projectId: string, orgId: string) => {
+  const stories = await prisma.story.findMany({
+    where: { projectId, project: { orgId } },
+    orderBy: [{ startDate: { sort: 'asc', nulls: 'last' } }, { number: 'asc' }],
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      asA: true,
+      iWant: true,
+      soThat: true,
+      description: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      colorSeed: true,
+      createdAt: true,
+      createdBy: { select: { id: true, name: true, avatarSeed: true } },
+      project: { select: { id: true, key: true, name: true } },
+      // Solo el estado: el avance se calcula aquí y las tareas completas se
+      // consultan al abrir la historia, no para pintar una barra.
+      tasks: { select: { status: true } },
+    },
+  })
+
+  return stories.map(({ tasks, ...story }) => {
+    const hechas = tasks.filter((t) => t.status === 'DONE').length
+    return {
+      ...story,
+      taskCount: tasks.length,
+      doneCount: hechas,
+      progress: tasks.length === 0 ? 0 : Math.round((hechas / tasks.length) * 100),
+    }
+  })
+})
+
+/// Lista ligera para el selector de historia del formulario de tarea.
+export const getStoryOptions = cache(async (projectId: string, orgId: string) => {
+  return prisma.story.findMany({
+    where: { projectId, project: { orgId } },
+    orderBy: { number: 'asc' },
+    select: { id: true, number: true, title: true, project: { select: { key: true } } },
+  })
+})
+
+/// Una historia con sus tareas, para el panel de detalle del cronograma.
+export const getStoryDetail = cache(async (storyId: string, orgId: string) => {
+  return prisma.story.findFirst({
+    where: { id: storyId, project: { orgId } },
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      asA: true,
+      iWant: true,
+      soThat: true,
+      description: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      colorSeed: true,
+      projectId: true,
+      createdAt: true,
+      createdBy: { select: { id: true, name: true, avatarSeed: true } },
+      project: { select: { id: true, key: true, name: true } },
+      tasks: {
+        orderBy: [{ status: 'asc' }, { number: 'asc' }],
+        select: {
+          id: true,
+          number: true,
+          title: true,
+          status: true,
+          priority: true,
+          dueDate: true,
+          assignees: { select: { id: true, name: true, avatarSeed: true }, orderBy: { name: 'asc' } },
+        },
+      },
     },
   })
 })

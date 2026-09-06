@@ -22,7 +22,6 @@ import {
   greeting,
   formatLongDate,
   projectColor,
-  relativeTime,
   isOverdue,
   formatShortDate,
   plural,
@@ -30,6 +29,7 @@ import {
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/shell/app-shell'
 import { Avatar, Badge, Card, CardHeader, EmptyState, Progress } from '@/components/ui/primitives'
+import { TimeAgo } from '@/components/ui/time-ago'
 
 export const metadata: Metadata = { title: 'Resumen' }
 
@@ -229,7 +229,7 @@ export default async function DashboardPage() {
                       <span className="font-semibold">{item.actor.name.split(' ')[0]}</span>{' '}
                       <span className="text-muted-foreground">{item.summary}</span>
                     </p>
-                    <p className="text-muted-foreground">{relativeTime(item.createdAt)}</p>
+                    <p className="text-muted-foreground"><TimeAgo date={item.createdAt} /></p>
                   </div>
                 </li>
               ))}

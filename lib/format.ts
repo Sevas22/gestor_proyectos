@@ -1,4 +1,4 @@
-import { Priority, ProjectStatus, TaskStatus } from '@prisma/client'
+import { Priority, ProjectStatus, StoryStatus, TaskStatus } from '@prisma/client'
 
 // Etiquetas y colores. Vive aparte de los componentes para que una tarea se vea
 // igual en el tablero, en la tabla y en el feed de actividad.
@@ -60,6 +60,49 @@ export const TASK_STATUS_STYLES: Record<TaskStatus, { dot: string; chip: string;
     chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
     bar: 'bg-emerald-500',
   },
+}
+
+export const STORY_STATUS_LABELS: Record<StoryStatus, string> = {
+  PLANNED: 'Planificada',
+  IN_PROGRESS: 'En curso',
+  DONE: 'Completada',
+}
+
+export const STORY_STATUS_ORDER: readonly StoryStatus[] = ['PLANNED', 'IN_PROGRESS', 'DONE']
+
+export const STORY_STATUS_STYLES: Record<StoryStatus, { chip: string; bar: string; dot: string }> = {
+  PLANNED: {
+    chip: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    bar: 'bg-slate-400',
+    dot: 'bg-slate-400',
+  },
+  IN_PROGRESS: {
+    chip: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+    bar: 'bg-sky-500',
+    dot: 'bg-sky-500',
+  },
+  DONE: {
+    chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+    bar: 'bg-emerald-500',
+    dot: 'bg-emerald-500',
+  },
+}
+
+/// Días entre dos fechas, contando ambos extremos: del 1 al 1 es un día, no
+/// cero. Es lo que espera cualquiera al leer «dura N días» en un cronograma.
+export function daysBetween(from: Date, to: Date) {
+  const dia = 24 * 60 * 60 * 1000
+  const a = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()
+  const b = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime()
+  return Math.round((b - a) / dia) + 1
+}
+
+/// Suma días a una fecha sin tocar la original.
+export function addDays(date: Date, days: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  next.setHours(0, 0, 0, 0)
+  return next
 }
 
 export const PRIORITY_LABELS: Record<Priority, string> = {

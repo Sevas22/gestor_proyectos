@@ -28,6 +28,7 @@ export type TaskFormValues = {
   status: TaskStatus
   priority?: Priority
   assigneeIds?: string[]
+  storyId?: string | null
   dueDate?: Date | null
 }
 
@@ -37,12 +38,14 @@ export function TaskDialog({
   onClose,
   members,
   projects,
+  stories = [],
   values,
 }: {
   open: boolean
   onClose: () => void
   members: { id: string; name: string; avatarSeed: number }[]
   projects: { id: string; name: string; key: string }[]
+  stories?: { id: string; number: number; title: string; project: { key: string } }[]
   values?: TaskFormValues
 }) {
   const router = useRouter()
@@ -167,6 +170,27 @@ export function TaskDialog({
               {ALL_TASK_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {TASK_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field
+            label="Historia de usuario"
+            htmlFor="storyId"
+            hint={stories.length === 0 ? 'Aún no hay historias en este proyecto.' : 'Opcional'}
+            error={state.errors?.storyId}
+          >
+            <Select
+              id="storyId"
+              name="storyId"
+              defaultValue={values.storyId ?? ''}
+              disabled={stories.length === 0}
+            >
+              <option value="">Sin historia</option>
+              {stories.map((story) => (
+                <option key={story.id} value={story.id}>
+                  {story.project.key}-H{story.number} · {story.title}
                 </option>
               ))}
             </Select>

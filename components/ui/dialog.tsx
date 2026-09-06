@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
@@ -45,8 +45,19 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement>(null)
   const openerRef = useRef<Element | null>(null)
 
+  // El portal solo puede existir en el navegador, pero devolver `null` en el
+  // servidor y el portal en el primer render del cliente son dos árboles
+  // distintos en la misma posición: eso es exactamente lo que React cuenta
+  // como fallo de hidratación. Con este estado el primer render del cliente
+  // también devuelve `null`, igual que el del servidor, y el portal aparece
+  // en el render siguiente, ya con la hidratación terminada.
+  const [montado, setMontado] = useState(false)
+  useEffect(() => setMontado(true), [])
+
   useEffect(() => {
-    if (!open) return
+    // Espera a `montado`: hasta entonces el portal no existe y `panelRef`
+    // está vacío, así que no habría campo al que llevar el foco.
+    if (!open || !montado) return
 
     openerRef.current = document.activeElement
     lockScroll()
@@ -67,11 +78,9 @@ export function Dialog({
       unlockScroll()
       ;(openerRef.current as HTMLElement | null)?.focus?.()
     }
-  }, [open, onClose])
+  }, [open, montado, onClose])
 
-  if (!open) return null
-  // createPortal necesita el DOM; en el servidor no hay document.
-  if (typeof document === 'undefined') return null
+  if (!open || !montado) return null
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
