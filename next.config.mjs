@@ -11,12 +11,13 @@ const nextConfig = {
   // La plantilla original traía typescript.ignoreBuildErrors: true, que deja
   // pasar a producción errores de tipos reales. Fuera: si no compila, hay que
   // arreglarlo, no silenciarlo.
-  // Las server actions cortan el cuerpo en 1 MB por defecto, así que una
-  // subida de 5 MB fallaría antes de llegar al código. Se deja margen para lo
-  // que añade multipart/form-data en límites y cabeceras de cada parte.
+  // Las server actions cortan el cuerpo en 1 MB por defecto, y una subida de 4
+  // MB no llegaría al código. Se sube a 4,5 MB y no más: ese es el máximo que
+  // Vercel acepta en el cuerpo de una función, y permitir más aquí solo daría
+  // un error 413 en producción que no aparece en local.
   experimental: {
     serverActions: {
-      bodySizeLimit: '6mb',
+      bodySizeLimit: '4.5mb',
     },
   },
   images: {

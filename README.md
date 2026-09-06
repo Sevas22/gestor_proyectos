@@ -98,8 +98,8 @@ botón de crear ni podrá arrastrar tarjetas.
 - **Tareas.** Título, descripción, prioridad, fecha límite y comentarios. Una
   tarea puede tener **varios responsables**: en un equipo de desarrollo lo normal
   es que dos personas se repartan lo mismo.
-- **Archivos adjuntos.** PDF, imágenes, documentos de Office, texto y ZIP, hasta
-  5 MB por archivo.
+- **Archivos adjuntos.** PDF, imágenes, documentos de Office, texto y ZIP. Se
+  pueden elegir varios al crear la tarea, o añadirlos después desde su detalle.
 - **Roles propios.** Cada equipo crea los suyos con el nombre que quiera y marca
   sus permisos uno a uno. El servidor los aplica de verdad.
 - **Actividad.** Cada cambio deja un registro con quién, qué y cuándo.
@@ -143,14 +143,28 @@ Se guardan **en la propia base de datos**, en una columna `bytea`. Es lo que
 permite funcionar sin contratar ni configurar nada más, a cambio de dos
 condiciones que conviene tener presentes:
 
-- **Límite de 5 MB por archivo** (`MAX_ATTACHMENT_BYTES` en
-  [`lib/attachments.ts`](lib/attachments.ts)). Para vídeo o archivos grandes
-  haría falta un almacenamiento aparte, no subir el límite.
+- **Límite de 4 MB por archivo** (`MAX_ATTACHMENT_BYTES` en
+  [`lib/attachments.ts`](lib/attachments.ts)).
 - **Cuentan contra la cuota de Neon**, que en el plan gratuito son 0,5 GB
   compartidos con el resto de los datos.
 
-Migrar a Vercel Blob o S3 más adelante toca un solo sitio: la acción de subida y
-la ruta de descarga. El resto de la aplicación no sabe dónde viven los bytes.
+### De dónde sale el límite de 4 MB
+
+No es una cifra elegida al azar: **Vercel corta el cuerpo de cualquier petición
+a una función en 4,5 MB** y devuelve un error 413 (`FUNCTION_PAYLOAD_TOO_LARGE`).
+Es un límite de la plataforma, así que `serverActions.bodySizeLimit` no lo puede
+levantar — subirlo en `next.config.mjs` solo consigue que algo funcione en local
+y falle al desplegar. El medio mega que queda es margen para lo que añade
+`multipart/form-data` y para los demás campos del formulario.
+
+Por eso, cuando se eligen varios archivos al crear una tarea, **cada uno viaja
+en su propia petición**. Mandarlos juntos sumaría tamaños y chocaría contra ese
+techo.
+
+Para archivos mayores no basta con subir el número: hay que sacar los bytes de
+la petición, subiéndolos desde el navegador directamente a Vercel Blob o S3.
+Ese cambio tocaría un solo sitio — la acción de subida y la ruta de descarga —,
+porque el resto de la aplicación no sabe dónde viven los bytes.
 
 ### Por qué la descarga es un route handler
 
@@ -274,8 +288,9 @@ Neon de producción (no solo compilando):
   exactamente el conjunto esperado.
 - **Adjuntos:** subido un PDF con nombre acentuado y descargado byte a byte, con
   las cabeceras correctas. Sin sesión el endpoint responde 401. Un SVG con
-  `<script>` dentro se rechaza por tipo, y un archivo de 6 MB da el mensaje de
-  tamaño sin romper la página.
+  `<script>` dentro se rechaza por tipo, y un archivo por encima del límite da el
+  mensaje de tamaño sin romper la página. Creada además una tarea con dos
+  responsables y dos archivos en un solo envío.
 - **Sobre el pooler de Neon:** las transacciones interactivas de Prisma
   (`$transaction`, que usa la creación de tareas para numerarlas sin colisiones)
   funcionan sobre la cadena con `-pooler`. No hace falta añadir `pgbouncer=true`.

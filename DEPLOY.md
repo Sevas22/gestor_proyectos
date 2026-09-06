@@ -76,6 +76,24 @@ pnpm db:deploy
 > aplicación anterior servida con un esquema a medias. Es preferible aplicarlas
 > a mano y saber cuándo pasan.
 
+## Los archivos adjuntos y el límite de Vercel
+
+Los adjuntos se guardan en la base de datos y viajan en el cuerpo de la
+petición. **Vercel corta ese cuerpo en 4,5 MB** y devuelve un error 413
+(`FUNCTION_PAYLOAD_TOO_LARGE`), así que el límite por archivo está en 4 MB, con
+margen para el sobrecoste de `multipart/form-data`.
+
+Ese techo es de la plataforma: subir `serverActions.bodySizeLimit` en
+`next.config.mjs` no lo levanta, solo consigue que algo funcione en local y
+falle en producción. Si necesitas archivos mayores, hay que subirlos desde el
+navegador directamente a Vercel Blob o S3, sin pasar por la función.
+
+Cuando se eligen varios archivos al crear una tarea, cada uno viaja en su propia
+petición para no sumar tamaños contra ese techo.
+
+Si pones un proxy o un CDN delante, comprueba que también deja pasar cuerpos de
+4,5 MB.
+
 ## Antes de abrirlo al público
 
 Dos cosas que en desarrollo no importan y en producción sí:

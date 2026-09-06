@@ -1,10 +1,11 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Priority, TaskStatus } from '@prisma/client'
 
 import { createTaskAction, updateTaskAction } from '@/app/actions/tasks'
+import { uploadAttachmentAction } from '@/app/actions/attachments'
 import { EMPTY_STATE } from '@/lib/validation'
 import {
   PRIORITY_LABELS,
@@ -16,6 +17,7 @@ import {
 import { Dialog } from '@/components/ui/dialog'
 import { Field, FormMessage, Input, Select, Textarea } from '@/components/ui/primitives'
 import { AssigneePicker } from '@/components/board/assignee-picker'
+import { FilePicker } from '@/components/board/file-picker'
 import { SubmitButton } from '@/components/ui/submit-button'
 
 export type TaskFormValues = {
@@ -47,12 +49,58 @@ export function TaskDialog({
   const editing = Boolean(values?.id)
   const [state, formAction] = useActionState(editing ? updateTaskAction : createTaskAction, EMPTY_STATE)
 
+  // Archivos elegidos antes de que la tarea exista. Esperan aquí hasta que el
+  // servidor devuelve el id.
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!state.ok) return
-    onClose()
-    // La server action ya revalidó las rutas; refresh vuelve a pedir el árbol
-    // del servidor para que el tablero muestre la tarjeta nueva sin recargar.
-    router.refresh()
+
+    // Sin archivos pendientes, el comportamiento de siempre.
+    if (!state.createdId || pendingFiles.length === 0) {
+      onClose()
+      setPendingFiles([])
+      router.refresh()
+      return
+    }
+
+    // Cada archivo va en su propia petición. Mandarlos juntos sumaría tamaños y
+    // chocaría contra el límite de 4,5 MB por cuerpo que impone la plataforma.
+    let cancelado = false
+    setUploading(true)
+    ;(async () => {
+      const fallidos: string[] = []
+      for (const file of pendingFiles) {
+        const fd = new FormData()
+        fd.append('taskId', state.createdId!)
+        fd.append('file', file)
+        const resultado = await uploadAttachmentAction(EMPTY_STATE, fd)
+        if (!resultado.ok) fallidos.push(file.name)
+      }
+      if (cancelado) return
+
+      setUploading(false)
+      setPendingFiles([])
+
+      // La tarea ya se creó: un fallo al adjuntar no debe hacer creer que se
+      // perdió todo. Se deja el diálogo abierto con el aviso.
+      if (fallidos.length > 0) {
+        setUploadError(
+          `La tarea se creó, pero no se pudieron adjuntar: ${fallidos.join(', ')}. Puedes intentarlo desde el detalle de la tarea.`,
+        )
+        router.refresh()
+        return
+      }
+
+      onClose()
+      router.refresh()
+    })()
+
+    return () => {
+      cancelado = true
+    }
     // Solo debe dispararse cuando cambia el resultado de la acción.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
@@ -135,6 +183,12 @@ export function TaskDialog({
           </Field>
         </div>
 
+        {!editing && (
+          <Field label="Archivos" htmlFor="files" hint="Opcional">
+            <FilePicker files={pendingFiles} onChange={setPendingFiles} disabled={uploading} />
+          </Field>
+        )}
+
         <Field label="Fecha límite" htmlFor="dueDate" hint="Opcional" error={state.errors?.dueDate}>
           <Input
             id="dueDate"
@@ -145,6 +199,7 @@ export function TaskDialog({
         </Field>
 
         {state.message && !state.ok && <FormMessage>{state.message}</FormMessage>}
+        {uploadError && <FormMessage>{uploadError}</FormMessage>}
 
         <div className="mt-2 flex justify-end gap-2">
           <button
@@ -154,7 +209,7 @@ export function TaskDialog({
           >
             Cancelar
           </button>
-          <SubmitButton pendingLabel="Guardando…">
+          <SubmitButton pendingLabel={uploading ? 'Subiendo archivos…' : 'Guardando…'}>
             {editing ? 'Guardar cambios' : 'Crear tarea'}
           </SubmitButton>
         </div>

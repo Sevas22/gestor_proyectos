@@ -50,12 +50,13 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
 
   const { projectId, assigneeIds, status, ...rest } = parsed.data
 
+  let createdId = ''
   try {
     const viewer = await requirePermission('task:create')
     await assertProjectInOrg(projectId, viewer.orgId)
     await assertAssigneesInOrg(assigneeIds, viewer.orgId)
 
-    await prisma.$transaction(async (tx) => {
+    createdId = await prisma.$transaction(async (tx) => {
       // El correlativo por proyecto (WEB-1, WEB-2...) se calcula dentro de la
       // transacción para que dos creaciones simultáneas no compartan número.
       const last = await tx.task.findFirst({
@@ -93,15 +94,20 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
           taskId: task.id,
         },
       })
+
+      return task.id
     })
   } catch (error) {
     return toState(error)
   }
 
   revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/projects/${projectId}/backlog`)
   revalidatePath('/tasks')
   revalidatePath('/dashboard')
-  return { ok: true, message: 'Tarea creada.' }
+  // El id vuelve al cliente para que pueda subir los archivos que se eligieron
+  // en el mismo formulario: un adjunto necesita una tarea a la que engancharse.
+  return { ok: true, message: 'Tarea creada.', createdId }
 }
 
 export async function updateTaskAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

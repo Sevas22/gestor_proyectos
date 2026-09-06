@@ -1,13 +1,26 @@
 /// Límite por archivo.
 ///
-/// Los adjuntos se guardan en la propia base de datos, así que cada megabyte
-/// cuenta contra la cuota de Neon (0,5 GB en el plan gratuito). Cinco megas
-/// entran los PDF y las capturas de pantalla que se comparten en un gestor de
-/// proyectos; para un vídeo hace falta otro almacenamiento, no subir el límite.
+/// Cuatro megas, y el número no es arbitrario: **Vercel corta el cuerpo de
+/// cualquier petición a una función en 4,5 MB** y devuelve un error 413
+/// (FUNCTION_PAYLOAD_TOO_LARGE). Es un límite de la plataforma, no de Next, así
+/// que `serverActions.bodySizeLimit` no lo puede levantar. El medio mega que
+/// queda es margen para lo que añade multipart/form-data y para los demás
+/// campos del formulario.
 ///
-/// Si se cambia, hay que subir también `serverActions.bodySizeLimit` en
-/// next.config.mjs, que es lo que corta la petición antes de llegar al código.
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
+/// Además, los adjuntos se guardan en la propia base de datos, así que cada
+/// megabyte cuenta contra la cuota de Neon (0,5 GB en el plan gratuito).
+///
+/// Para archivos mayores no basta con subir este número: hay que sacar los
+/// bytes de la petición, subiéndolos directamente a un almacenamiento como
+/// Vercel Blob o S3 desde el navegador.
+export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024
+
+/// Cuántos archivos se pueden elegir de una vez.
+///
+/// No es un límite del servidor: cada archivo viaja en su **propia** petición
+/// precisamente para no sumar tamaños y chocar contra los 4,5 MB. Esto solo
+/// evita que alguien seleccione doscientos y se quede mirando la pantalla.
+export const MAX_FILES_PER_BATCH = 10
 
 /// Tipos que se aceptan, con la extensión que les corresponde.
 ///

@@ -149,6 +149,10 @@ export type ActionState = {
   message?: string
   /// Errores por campo, en el formato que devuelve z.flattenError.
   errors?: Record<string, string[] | undefined>
+  /// Id de la fila recién creada, cuando el cliente necesita seguir trabajando
+  /// con ella. Lo usa el diálogo de tarea para adjuntar archivos a algo que
+  /// hasta ese momento no existía.
+  createdId?: string
 }
 
 export const EMPTY_STATE: ActionState = { ok: false }
