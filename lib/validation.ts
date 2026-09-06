@@ -82,11 +82,13 @@ export const taskSchema = z.object({
   projectId: z.string().min(1, 'Elige un proyecto.'),
   status: z.enum(TaskStatus).default('TODO'),
   priority: z.enum(Priority).default('MEDIUM'),
-  // Cadena vacía = sin asignar. El <select> no puede emitir null.
-  assigneeId: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.length > 0 ? value : null)),
+  // Varias personas pueden llevar la misma tarea. Las casillas marcadas llegan
+  // repetidas bajo el mismo nombre, así que el formulario manda una lista.
+  assigneeIds: z
+    .array(z.string().min(1))
+    .default([])
+    // Marcar dos veces a la misma persona no debería duplicar la asignación.
+    .transform((ids) => [...new Set(ids)]),
   // parseDateOnly interpreta "2026-09-30" como medianoche local, no UTC.
   // El error se emite desde el transform: si solo se comprobara el resultado,
   // una fecha ilegible sería indistinguible de un campo vacío y se guardaría

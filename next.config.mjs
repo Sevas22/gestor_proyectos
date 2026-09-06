@@ -11,6 +11,14 @@ const nextConfig = {
   // La plantilla original traía typescript.ignoreBuildErrors: true, que deja
   // pasar a producción errores de tipos reales. Fuera: si no compila, hay que
   // arreglarlo, no silenciarlo.
+  // Las server actions cortan el cuerpo en 1 MB por defecto, así que una
+  // subida de 5 MB fallaría antes de llegar al código. Se deja margen para lo
+  // que añade multipart/form-data en límites y cabeceras de cada parte.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '6mb',
+    },
+  },
   images: {
     unoptimized: true,
   },

@@ -24,33 +24,36 @@ function readForm(formData: FormData) {
     projectId: formData.get('projectId'),
     status: formData.get('status') ?? 'TODO',
     priority: formData.get('priority') ?? 'MEDIUM',
-    assigneeId: formData.get('assigneeId') ?? '',
+    assigneeIds: formData.getAll('assigneeIds').map(String).filter(Boolean),
     dueDate: formData.get('dueDate') ?? '',
   }
 }
 
-/// Comprueba que quien recibe la tarea pertenece a la organización. Sin esto, un
-/// id de usuario cualquiera bastaría para asignarle trabajo a alguien de fuera.
-async function assertAssigneeInOrg(assigneeId: string | null, orgId: string) {
-  if (!assigneeId) return null
-  const membership = await prisma.membership.findUnique({
-    where: { userId_orgId: { userId: assigneeId, orgId } },
+/// Comprueba que todos los responsables pertenecen a la organización y están
+/// aprobados. Sin esto, un id de usuario cualquiera bastaría para asignarle
+/// trabajo a alguien de fuera del equipo.
+async function assertAssigneesInOrg(assigneeIds: string[], orgId: string) {
+  if (assigneeIds.length === 0) return []
+  const activos = await prisma.membership.findMany({
+    where: { orgId, status: 'ACTIVE', userId: { in: assigneeIds } },
     select: { userId: true },
   })
-  if (!membership) throw new Error('Esa persona no pertenece a tu organización.')
-  return assigneeId
+  if (activos.length !== assigneeIds.length) {
+    throw new Error('Alguna de esas personas no pertenece a tu organización.')
+  }
+  return assigneeIds
 }
 
 export async function createTaskAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = taskSchema.safeParse(readForm(formData))
   if (!parsed.success) return fieldErrors(parsed.error)
 
-  const { projectId, assigneeId, status, ...rest } = parsed.data
+  const { projectId, assigneeIds, status, ...rest } = parsed.data
 
   try {
     const viewer = await requirePermission('task:create')
     await assertProjectInOrg(projectId, viewer.orgId)
-    await assertAssigneeInOrg(assigneeId, viewer.orgId)
+    await assertAssigneesInOrg(assigneeIds, viewer.orgId)
 
     await prisma.$transaction(async (tx) => {
       // El correlativo por proyecto (WEB-1, WEB-2...) se calcula dentro de la
@@ -72,7 +75,7 @@ export async function createTaskAction(_prev: ActionState, formData: FormData): 
           ...rest,
           status,
           projectId,
-          assigneeId,
+          assignees: { connect: assigneeIds.map((id) => ({ id })) },
           number: (last?.number ?? 0) + 1,
           position: (first?.position ?? 0) - 1,
           createdById: viewer.id,
@@ -106,17 +109,19 @@ export async function updateTaskAction(_prev: ActionState, formData: FormData): 
   const parsed = taskSchema.safeParse(readForm(formData))
   if (!parsed.success) return fieldErrors(parsed.error)
 
-  const { projectId, assigneeId, ...rest } = parsed.data
+  const { projectId, assigneeIds, ...rest } = parsed.data
 
   try {
     const viewer = await requirePermission('task:update')
     const existing = await assertTaskInOrg(id, viewer.orgId)
     await assertProjectInOrg(projectId, viewer.orgId)
-    await assertAssigneeInOrg(assigneeId, viewer.orgId)
+    await assertAssigneesInOrg(assigneeIds, viewer.orgId)
 
     const task = await prisma.task.update({
       where: { id },
-      data: { ...rest, projectId, assigneeId },
+      // `set` y no `connect`: la lista que llega es la definitiva, así que
+      // desmarcar a alguien en el formulario tiene que quitarlo de verdad.
+      data: { ...rest, projectId, assignees: { set: assigneeIds.map((id) => ({ id })) } },
       select: { id: true, number: true, title: true, status: true, project: { select: { key: true } } },
     })
 

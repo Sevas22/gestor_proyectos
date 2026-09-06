@@ -58,35 +58,36 @@ const TASKS: {
   description: string
   status: TaskStatus
   priority: Priority
-  assignee: number | null
+  /// Índices dentro de PEOPLE. Varias personas pueden llevar la misma tarea.
+  assignees: number[]
   dueInDays: number | null
 }[] = [
-  { project: 'WEB', title: 'Rediseñar el flujo de alta', description: 'Reducir de cinco pasos a dos. Validar el correo antes de pedir la contraseña.', status: TaskStatus.IN_PROGRESS, priority: Priority.HIGH, assignee: 0, dueInDays: 6 },
-  { project: 'WEB', title: 'Estados vacíos del panel', description: 'Cada lista vacía debe decir qué hacer a continuación, no solo que no hay nada.', status: TaskStatus.TODO, priority: Priority.MEDIUM, assignee: 2, dueInDays: 14 },
-  { project: 'WEB', title: 'Pruebas E2E de autenticación', description: 'Cubrir alta, acceso, cierre de sesión y expiración de la cookie.', status: TaskStatus.TODO, priority: Priority.HIGH, assignee: 3, dueInDays: -2 },
-  { project: 'WEB', title: 'Migrar tipografía a variable', description: 'Una sola petición en vez de cuatro pesos sueltos.', status: TaskStatus.DONE, priority: Priority.LOW, assignee: 2, dueInDays: null },
-  { project: 'WEB', title: 'Accesibilidad del menú lateral', description: 'Navegación por teclado y foco visible en todos los enlaces.', status: TaskStatus.IN_REVIEW, priority: Priority.MEDIUM, assignee: 1, dueInDays: 3 },
+  { project: 'WEB', title: 'Rediseñar el flujo de alta', description: 'Reducir de cinco pasos a dos. Validar el correo antes de pedir la contraseña.', status: TaskStatus.IN_PROGRESS, priority: Priority.HIGH, assignees: [0], dueInDays: 6 },
+  { project: 'WEB', title: 'Estados vacíos del panel', description: 'Cada lista vacía debe decir qué hacer a continuación, no solo que no hay nada.', status: TaskStatus.TODO, priority: Priority.MEDIUM, assignees: [2], dueInDays: 14 },
+  { project: 'WEB', title: 'Pruebas E2E de autenticación', description: 'Cubrir alta, acceso, cierre de sesión y expiración de la cookie.', status: TaskStatus.TODO, priority: Priority.HIGH, assignees: [3, 2], dueInDays: -2 },
+  { project: 'WEB', title: 'Migrar tipografía a variable', description: 'Una sola petición en vez de cuatro pesos sueltos.', status: TaskStatus.DONE, priority: Priority.LOW, assignees: [2], dueInDays: null },
+  { project: 'WEB', title: 'Accesibilidad del menú lateral', description: 'Navegación por teclado y foco visible en todos los enlaces.', status: TaskStatus.IN_REVIEW, priority: Priority.MEDIUM, assignees: [1], dueInDays: 3 },
 
-  { project: 'API', title: 'Validar permisos por rol', description: 'Cada endpoint de escritura comprueba el rol antes de tocar la base de datos.', status: TaskStatus.IN_REVIEW, priority: Priority.URGENT, assignee: 1, dueInDays: 1 },
-  { project: 'API', title: 'Límite de peticiones por IP', description: 'Proteger el endpoint de acceso contra fuerza bruta.', status: TaskStatus.TODO, priority: Priority.HIGH, assignee: null, dueInDays: 10 },
-  { project: 'API', title: 'Paginación en el listado de tareas', description: 'Cursor en vez de offset: el offset se degrada con el volumen.', status: TaskStatus.TODO, priority: Priority.MEDIUM, assignee: 3, dueInDays: null },
-  { project: 'API', title: 'Registro estructurado', description: 'Salida en JSON con identificador de petición para poder correlacionar.', status: TaskStatus.DONE, priority: Priority.MEDIUM, assignee: 2, dueInDays: null },
+  { project: 'API', title: 'Validar permisos por rol', description: 'Cada endpoint de escritura comprueba el rol antes de tocar la base de datos.', status: TaskStatus.IN_REVIEW, priority: Priority.URGENT, assignees: [1, 0, 3], dueInDays: 1 },
+  { project: 'API', title: 'Límite de peticiones por IP', description: 'Proteger el endpoint de acceso contra fuerza bruta.', status: TaskStatus.TODO, priority: Priority.HIGH, assignees: [], dueInDays: 10 },
+  { project: 'API', title: 'Paginación en el listado de tareas', description: 'Cursor en vez de offset: el offset se degrada con el volumen.', status: TaskStatus.TODO, priority: Priority.MEDIUM, assignees: [3], dueInDays: null },
+  { project: 'API', title: 'Registro estructurado', description: 'Salida en JSON con identificador de petición para poder correlacionar.', status: TaskStatus.DONE, priority: Priority.MEDIUM, assignees: [2], dueInDays: null },
 
-  { project: 'MOB', title: 'Pantalla de inicio', description: 'Resumen de tareas asignadas y actividad reciente.', status: TaskStatus.IN_PROGRESS, priority: Priority.HIGH, assignee: 3, dueInDays: 8 },
-  { project: 'MOB', title: 'Notificaciones push', description: 'Avisar cuando alguien te asigna una tarea o comenta en la tuya.', status: TaskStatus.TODO, priority: Priority.LOW, assignee: null, dueInDays: null },
-  { project: 'MOB', title: 'Modo sin conexión', description: 'Caché local de las tareas propias para consultarlas sin red.', status: TaskStatus.TODO, priority: Priority.LOW, assignee: 2, dueInDays: null },
+  { project: 'MOB', title: 'Pantalla de inicio', description: 'Resumen de tareas asignadas y actividad reciente.', status: TaskStatus.IN_PROGRESS, priority: Priority.HIGH, assignees: [3], dueInDays: 8 },
+  { project: 'MOB', title: 'Notificaciones push', description: 'Avisar cuando alguien te asigna una tarea o comenta en la tuya.', status: TaskStatus.TODO, priority: Priority.LOW, assignees: [], dueInDays: null },
+  { project: 'MOB', title: 'Modo sin conexión', description: 'Caché local de las tareas propias para consultarlas sin red.', status: TaskStatus.TODO, priority: Priority.LOW, assignees: [2], dueInDays: null },
 
-  { project: 'INF', title: 'Copias de seguridad automáticas', description: 'Volcado diario a almacenamiento externo con retención de 30 días.', status: TaskStatus.DONE, priority: Priority.URGENT, assignee: 1, dueInDays: null },
-  { project: 'INF', title: 'Alertas de latencia', description: 'Avisar si el percentil 95 supera los 500 ms durante cinco minutos.', status: TaskStatus.IN_PROGRESS, priority: Priority.HIGH, assignee: 0, dueInDays: -1 },
-  { project: 'INF', title: 'Rotar credenciales de base de datos', description: 'Y documentar el procedimiento para que no dependa de una persona.', status: TaskStatus.TODO, priority: Priority.URGENT, assignee: 0, dueInDays: 2 },
+  { project: 'INF', title: 'Copias de seguridad automáticas', description: 'Volcado diario a almacenamiento externo con retención de 30 días.', status: TaskStatus.DONE, priority: Priority.URGENT, assignees: [1], dueInDays: null },
+  { project: 'INF', title: 'Alertas de latencia', description: 'Avisar si el percentil 95 supera los 500 ms durante cinco minutos.', status: TaskStatus.IN_PROGRESS, priority: Priority.HIGH, assignees: [0], dueInDays: -1 },
+  { project: 'INF', title: 'Rotar credenciales de base de datos', description: 'Y documentar el procedimiento para que no dependa de una persona.', status: TaskStatus.TODO, priority: Priority.URGENT, assignees: [0], dueInDays: 2 },
 
   // Backlog: trabajo identificado pero todavía sin comprometer. No sale en el
   // tablero ni cuenta en el progreso del proyecto.
-  { project: 'WEB', title: 'Buscador global con atajo de teclado', description: 'Cmd+K para saltar a cualquier proyecto o tarea sin usar el ratón.', status: TaskStatus.BACKLOG, priority: Priority.MEDIUM, assignee: null, dueInDays: null },
-  { project: 'WEB', title: 'Exportar el tablero a CSV', description: 'Lo pidió administración para los informes mensuales.', status: TaskStatus.BACKLOG, priority: Priority.LOW, assignee: null, dueInDays: null },
-  { project: 'API', title: 'Webhooks de eventos de tarea', description: 'Avisar a sistemas externos cuando una tarea cambia de estado.', status: TaskStatus.BACKLOG, priority: Priority.HIGH, assignee: null, dueInDays: null },
-  { project: 'API', title: 'Caché de las consultas del panel', description: 'El resumen hace siete consultas en cada carga.', status: TaskStatus.BACKLOG, priority: Priority.MEDIUM, assignee: 3, dueInDays: null },
-  { project: 'MOB', title: 'Widget para la pantalla de inicio', description: 'Ver las tareas del día sin abrir la aplicación.', status: TaskStatus.BACKLOG, priority: Priority.LOW, assignee: null, dueInDays: null },
+  { project: 'WEB', title: 'Buscador global con atajo de teclado', description: 'Cmd+K para saltar a cualquier proyecto o tarea sin usar el ratón.', status: TaskStatus.BACKLOG, priority: Priority.MEDIUM, assignees: [], dueInDays: null },
+  { project: 'WEB', title: 'Exportar el tablero a CSV', description: 'Lo pidió administración para los informes mensuales.', status: TaskStatus.BACKLOG, priority: Priority.LOW, assignees: [], dueInDays: null },
+  { project: 'API', title: 'Webhooks de eventos de tarea', description: 'Avisar a sistemas externos cuando una tarea cambia de estado.', status: TaskStatus.BACKLOG, priority: Priority.HIGH, assignees: [], dueInDays: null },
+  { project: 'API', title: 'Caché de las consultas del panel', description: 'El resumen hace siete consultas en cada carga.', status: TaskStatus.BACKLOG, priority: Priority.MEDIUM, assignees: [3], dueInDays: null },
+  { project: 'MOB', title: 'Widget para la pantalla de inicio', description: 'Ver las tareas del día sin abrir la aplicación.', status: TaskStatus.BACKLOG, priority: Priority.LOW, assignees: [], dueInDays: null },
 ]
 
 const COMMENTS = [
@@ -201,13 +202,25 @@ async function main() {
       position: number,
       dueDate: template.dueInDays === null ? null : daysFromNow(template.dueInDays),
       projectId,
-      assigneeId: template.assignee === null ? null : users[template.assignee].id,
+      assignees: { set: template.assignees.map((i) => ({ id: users[i].id })) },
       createdById: users[0].id,
     }
 
+    // Al crear se usa `connect` y al actualizar `set`: son la misma intención,
+    // pero `set` sobre una fila que aún no existe no tiene sentido.
+    const { assignees: _sinUsar, ...datosSinResponsables } = data
+
     const task = existing
       ? await prisma.task.update({ where: { id: existing.id }, data, select: { id: true } })
-      : await prisma.task.create({ data: { ...data, number }, select: { id: true } })
+      : await prisma.task.create({
+          // `set` no vale al crear: la tarea todavía no existe, así que se conecta.
+          data: {
+            ...datosSinResponsables,
+            number,
+            assignees: { connect: template.assignees.map((i) => ({ id: users[i].id })) },
+          },
+          select: { id: true },
+        })
 
     taskIds.set(template.title, task.id)
   }

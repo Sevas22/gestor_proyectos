@@ -226,10 +226,18 @@ export async function removeMemberAction(_prev: ActionState, formData: FormData)
     // Se borra la membresía, no la cuenta: la persona puede estar en otros equipos.
     // Sus tareas asignadas quedan sin responsable (onDelete: SetNull).
     await prisma.membership.delete({ where: { id: membership.id } })
-    await prisma.task.updateMany({
-      where: { assigneeId: membership.userId, project: { orgId: viewer.orgId } },
-      data: { assigneeId: null },
+    // Se le quita de las tareas que llevaba. Con varios responsables esto ya no
+    // deja la tarea huérfana: los demás siguen.
+    const suyas = await prisma.task.findMany({
+      where: { assignees: { some: { id: membership.userId } }, project: { orgId: viewer.orgId } },
+      select: { id: true },
     })
+    for (const tarea of suyas) {
+      await prisma.task.update({
+        where: { id: tarea.id },
+        data: { assignees: { disconnect: { id: membership.userId } } },
+      })
+    }
     await prisma.activity.create({
       data: {
         type: 'MEMBER_REMOVED',

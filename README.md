@@ -95,8 +95,11 @@ botón de crear ni podrá arrastrar tarjetas.
   arriba es lo siguiente que entrará— y un botón lo pasa al tablero. El camino
   de vuelta también existe: una tarea planificada antes de tiempo se devuelve al
   backlog sin borrarla.
-- **Tareas.** Título, descripción, responsable, prioridad, fecha límite y
-  comentarios.
+- **Tareas.** Título, descripción, prioridad, fecha límite y comentarios. Una
+  tarea puede tener **varios responsables**: en un equipo de desarrollo lo normal
+  es que dos personas se repartan lo mismo.
+- **Archivos adjuntos.** PDF, imágenes, documentos de Office, texto y ZIP, hasta
+  5 MB por archivo.
 - **Roles propios.** Cada equipo crea los suyos con el nombre que quiera y marca
   sus permisos uno a uno. El servidor los aplica de verdad.
 - **Actividad.** Cada cambio deja un registro con quién, qué y cuándo.
@@ -109,9 +112,9 @@ rol es una fila con nombre, color y una lista de permisos, y se crea desde
 Gestor de proyecto, Desarrollador y Observador— que son un punto de partida
 editable, no una imposición.
 
-Los 16 permisos están agrupados en el catálogo de
+Los 18 permisos están agrupados en el catálogo de
 [`lib/permissions.ts`](lib/permissions.ts): proyectos, tareas, comentarios,
-equipo y administración. Añadir uno nuevo al producto es añadir una entrada a
+archivos, equipo y administración. Añadir uno nuevo al producto es añadir una entrada a
 ese catálogo — aparece solo en el formulario y no necesita migrar el esquema,
 porque los permisos se guardan como lista de texto y no como columnas.
 
@@ -134,10 +137,48 @@ que hay tres salvaguardas, todas en el servidor:
 Además, un rol que tiene gente asignada no se puede eliminar — hay que
 reasignarla primero.
 
+## Los archivos adjuntos
+
+Se guardan **en la propia base de datos**, en una columna `bytea`. Es lo que
+permite funcionar sin contratar ni configurar nada más, a cambio de dos
+condiciones que conviene tener presentes:
+
+- **Límite de 5 MB por archivo** (`MAX_ATTACHMENT_BYTES` en
+  [`lib/attachments.ts`](lib/attachments.ts)). Para vídeo o archivos grandes
+  haría falta un almacenamiento aparte, no subir el límite.
+- **Cuentan contra la cuota de Neon**, que en el plan gratuito son 0,5 GB
+  compartidos con el resto de los datos.
+
+Migrar a Vercel Blob o S3 más adelante toca un solo sitio: la acción de subida y
+la ruta de descarga. El resto de la aplicación no sabe dónde viven los bytes.
+
+### Por qué la descarga es un route handler
+
+[`app/api/attachments/[id]/route.ts`](app/api/attachments/[id]/route.ts) hace
+tres cosas que importan más aquí que en el resto del código:
+
+1. **Filtra por `orgId`.** Conocer el id de un adjunto no basta para
+   descargarlo; hay que pertenecer a la organización de su tarea. Y si no es
+   tuyo devuelve 404, no 403: distinguirlos revelaría qué archivos existen en
+   otras organizaciones.
+2. **`Content-Disposition: attachment`.** Fuerza la descarga. Sin esto, subir un
+   SVG con JavaScript dentro y pasar el enlace sería un XSS almacenado servido
+   desde el propio dominio, con la cookie de sesión a mano. Por eso el SVG
+   tampoco está en la lista de tipos permitidos.
+3. **`X-Content-Type-Options: nosniff`.** Impide que el navegador ignore el tipo
+   declarado y adivine otro mirando el contenido.
+
+El tamaño se valida **dos veces**: en el navegador al elegir el archivo y en el
+servidor al recibirlo. No es redundancia — `serverActions.bodySizeLimit` corta
+la petición en el framework antes de que el código llegue a validar nada, así
+que sin la comprobación del cliente un archivo de 10 MB da un error de servidor
+opaco en vez de «el archivo pesa demasiado».
+
 ## El backlog
 
 Un elemento del backlog **es una tarea normal** en un quinto estado, `BACKLOG`.
-Eso le da gratis responsable, prioridad, fecha, comentarios y actividad, sin
+Eso le da gratis responsables, prioridad, fecha, comentarios, archivos y
+actividad, sin
 duplicar modelo ni pantallas. Lo que cambia es cómo lo cuenta el resto de la
 aplicación:
 
@@ -228,6 +269,13 @@ Neon de producción (no solo compilando):
   el progreso solo se movió al entrar la tarea, no al añadirla al backlog.
   Probado también el camino de vuelta. Un observador ve el backlog pero sin
   botones de añadir ni promocionar, y los elementos no son arrastrables.
+- **Varios responsables:** migradas las 14 asignaciones existentes sin pérdida,
+  y comprobado en la interfaz que quitar a una persona y añadir a otra deja
+  exactamente el conjunto esperado.
+- **Adjuntos:** subido un PDF con nombre acentuado y descargado byte a byte, con
+  las cabeceras correctas. Sin sesión el endpoint responde 401. Un SVG con
+  `<script>` dentro se rechaza por tipo, y un archivo de 6 MB da el mensaje de
+  tamaño sin romper la página.
 - **Sobre el pooler de Neon:** las transacciones interactivas de Prisma
   (`$transaction`, que usa la creación de tareas para numerarlas sin colisiones)
   funcionan sobre la cadena con `-pooler`. No hace falta añadir `pgbouncer=true`.
@@ -264,6 +312,7 @@ lib/permissions.ts            catálogo de permisos y roles por defecto
 lib/queries.ts                consultas de lectura, todas filtradas por orgId
 lib/validation.ts             esquemas de Zod
 lib/format.ts                 etiquetas, colores y fechas en español
+lib/attachments.ts            límites y tipos permitidos de los adjuntos
 
 app/actions/                  server actions: auth, proyectos, tareas,
                               comentarios y miembros

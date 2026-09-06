@@ -23,6 +23,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Avatar, Badge, FormMessage, Input } from '@/components/ui/primitives'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { TaskDialog, type TaskFormValues } from '@/components/board/task-dialog'
+import { AttachmentList, type AttachmentSummary } from '@/components/board/attachment-list'
 
 export type TaskDetailData = {
   id: string
@@ -34,9 +35,8 @@ export type TaskDetailData = {
   dueDate: Date | null
   createdAt: Date
   projectId: string
-  assigneeId: string | null
   project: { id: string; key: string; name: string }
-  assignee: { id: string; name: string; avatarSeed: number } | null
+  assignees: { id: string; name: string; avatarSeed: number }[]
   createdBy: { id: string; name: string; avatarSeed: number }
   comments: {
     id: string
@@ -45,6 +45,7 @@ export type TaskDetailData = {
     authorId: string
     author: { id: string; name: string; avatarSeed: number }
   }[]
+  attachments: AttachmentSummary[]
 }
 
 /// Panel de detalle. Se abre desde `?task=<id>`, así que cerrarlo es simplemente
@@ -102,7 +103,7 @@ export function TaskDetail({
     projectId: task.projectId,
     status: task.status,
     priority: task.priority,
-    assigneeId: task.assigneeId,
+    assigneeIds: task.assignees.map((a) => a.id),
     dueDate: task.dueDate,
   }
 
@@ -144,18 +145,22 @@ export function TaskDetail({
           <div className="grid gap-4 rounded-lg bg-accent/50 p-4 sm:grid-cols-2">
             <div>
               <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                Responsable
+                {task.assignees.length === 1 ? 'Responsable' : 'Responsables'}
               </p>
-              {task.assignee ? (
-                <div className="mt-2 flex items-center gap-2">
-                  <Avatar name={task.assignee.name} seed={task.assignee.avatarSeed} size="sm" />
-                  <span className="text-sm font-medium">{task.assignee.name}</span>
-                </div>
-              ) : (
+              {task.assignees.length === 0 ? (
                 <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                   <User2 className="size-4" />
                   Sin asignar
                 </p>
+              ) : (
+                <ul className="mt-2 flex flex-col gap-1.5">
+                  {task.assignees.map((person) => (
+                    <li key={person.id} className="flex items-center gap-2">
+                      <Avatar name={person.name} seed={person.avatarSeed} size="sm" />
+                      <span className="truncate text-sm font-medium">{person.name}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
             <div>
@@ -184,6 +189,13 @@ export function TaskDetail({
               )}
             </p>
           </div>
+
+          <AttachmentList
+            taskId={task.id}
+            attachments={task.attachments}
+            permissions={permissions}
+            viewerId={viewerId}
+          />
 
           <div className="border-t border-border pt-5">
             <p className="mb-3 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">

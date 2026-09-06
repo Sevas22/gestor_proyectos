@@ -14,7 +14,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const [projectCount, myOpenTasks, memberCount] = await Promise.all([
     prisma.project.count({ where: { orgId: viewer.orgId, status: { not: 'ARCHIVED' } } }),
     prisma.task.count({
-      where: { project: { orgId: viewer.orgId }, assigneeId: viewer.id, status: { not: 'DONE' } },
+      where: {
+        project: { orgId: viewer.orgId },
+        assignees: { some: { id: viewer.id } },
+        status: { notIn: ['DONE', 'BACKLOG'] },
+      },
     }),
     prisma.membership.count({ where: { orgId: viewer.orgId } }),
   ])

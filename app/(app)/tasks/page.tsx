@@ -18,7 +18,8 @@ import {
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/shell/app-shell'
-import { Avatar, Badge, Card, EmptyState } from '@/components/ui/primitives'
+import { Badge, Card, EmptyState } from '@/components/ui/primitives'
+import { AssigneeStack } from '@/components/board/assignee-stack'
 import { TaskFilters } from '@/components/tasks/task-filters'
 
 export const metadata: Metadata = { title: 'Tareas' }
@@ -162,17 +163,15 @@ export default async function TasksPage({ searchParams }: Props) {
                         )}
                       </td>
                       <td className="px-5 py-4">
-                        {task.assignee ? (
-                          <div className="flex items-center gap-2">
-                            <Avatar
-                              name={task.assignee.name}
-                              seed={task.assignee.avatarSeed}
-                              size="sm"
-                            />
-                            <span className="truncate text-xs">{task.assignee.name}</span>
-                          </div>
-                        ) : (
+                        {task.assignees.length === 0 ? (
                           <span className="text-xs text-muted-foreground">Sin asignar</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <AssigneeStack assignees={task.assignees} />
+                            {task.assignees.length === 1 && (
+                              <span className="truncate text-xs">{task.assignees[0].name}</span>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>

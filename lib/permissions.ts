@@ -15,6 +15,8 @@ export type Permission =
   | 'task:delete'
   | 'comment:create'
   | 'comment:delete'
+  | 'attachment:upload'
+  | 'attachment:delete'
   | 'member:invite'
   | 'member:approve'
   | 'member:update_role'
@@ -82,6 +84,22 @@ export const PERMISSION_CATALOG: {
       {
         key: 'comment:delete',
         label: 'Eliminar comentarios de otros',
+        description: 'Cualquiera puede borrar los suyos; esto permite borrar los ajenos.',
+      },
+    ],
+  },
+  {
+    group: 'Archivos',
+    hint: 'Documentos adjuntos a las tareas.',
+    items: [
+      {
+        key: 'attachment:upload',
+        label: 'Adjuntar archivos',
+        description: 'Subir PDF, imágenes y documentos a una tarea.',
+      },
+      {
+        key: 'attachment:delete',
+        label: 'Eliminar archivos de otros',
         description: 'Cualquiera puede borrar los suyos; esto permite borrar los ajenos.',
       },
     ],
@@ -166,6 +184,7 @@ export const LOCKOUT_PERMISSIONS: readonly Permission[] = ['member:update_role',
 /// Un permiso de gestión concedido por error es más caro de deshacer que uno de
 /// trabajo. La interfaz los marca para que se vean.
 export const SENSITIVE_PERMISSIONS: readonly Permission[] = [
+  'attachment:delete',
   'member:update_role',
   'member:remove',
   'role:manage',
@@ -204,6 +223,8 @@ export const DEFAULT_ROLES: {
       'task:delete',
       'comment:create',
       'comment:delete',
+      'attachment:upload',
+      'attachment:delete',
       'member:invite',
     ],
     colorSeed: 1,
@@ -212,7 +233,14 @@ export const DEFAULT_ROLES: {
   {
     name: 'Desarrollador',
     description: 'Crea y actualiza tareas, las mueve en el tablero y comenta.',
-    permissions: ['task:create', 'task:update', 'task:move', 'task:assign', 'comment:create'],
+    permissions: [
+      'task:create',
+      'task:update',
+      'task:move',
+      'task:assign',
+      'comment:create',
+      'attachment:upload',
+    ],
     colorSeed: 2,
     isSystem: false,
   },

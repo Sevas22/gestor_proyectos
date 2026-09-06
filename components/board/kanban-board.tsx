@@ -1,7 +1,7 @@
 'use client'
 
 import { useOptimistic, useState, useTransition } from 'react'
-import { MessageSquareText, Plus } from 'lucide-react'
+import { MessageSquareText, Paperclip, Plus } from 'lucide-react'
 import type { Priority, TaskStatus } from '@prisma/client'
 
 import { moveTaskAction } from '@/app/actions/tasks'
@@ -16,7 +16,8 @@ import {
   isOverdue,
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { Avatar, Badge } from '@/components/ui/primitives'
+import { Badge } from '@/components/ui/primitives'
+import { AssigneeStack } from '@/components/board/assignee-stack'
 
 export type BoardTask = {
   id: string
@@ -26,9 +27,9 @@ export type BoardTask = {
   priority: Priority
   position: number
   dueDate: Date | null
-  assignee: { id: string; name: string; avatarSeed: number } | null
+  assignees: { id: string; name: string; avatarSeed: number }[]
   project: { key: string }
-  _count: { comments: number }
+  _count: { comments: number; attachments: number }
 }
 
 /// Tablero Kanban con arrastrar y soltar nativo del navegador (HTML5 drag and
@@ -214,23 +215,19 @@ export function KanbanBoard({
                               {task._count.comments}
                             </span>
                           )}
+                          {task._count.attachments > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Paperclip className="size-3" />
+                              {task._count.attachments}
+                            </span>
+                          )}
                           {task.dueDate && (
                             <span className={cn(late && 'font-semibold text-destructive')}>
                               {formatShortDate(task.dueDate)}
                             </span>
                           )}
                         </div>
-                        {task.assignee ? (
-                          <Avatar
-                            name={task.assignee.name}
-                            seed={task.assignee.avatarSeed}
-                            size="sm"
-                          />
-                        ) : (
-                          <span className="flex size-6 items-center justify-center rounded-full border border-dashed border-border text-[9px] text-muted-foreground">
-                            ?
-                          </span>
-                        )}
+                        <AssigneeStack assignees={task.assignees} />
                       </div>
                     </button>
                   </article>

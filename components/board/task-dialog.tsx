@@ -15,6 +15,7 @@ import {
 } from '@/lib/format'
 import { Dialog } from '@/components/ui/dialog'
 import { Field, FormMessage, Input, Select, Textarea } from '@/components/ui/primitives'
+import { AssigneePicker } from '@/components/board/assignee-picker'
 import { SubmitButton } from '@/components/ui/submit-button'
 
 export type TaskFormValues = {
@@ -24,7 +25,7 @@ export type TaskFormValues = {
   projectId: string
   status: TaskStatus
   priority?: Priority
-  assigneeId?: string | null
+  assigneeIds?: string[]
   dueDate?: Date | null
 }
 
@@ -98,23 +99,16 @@ export function TaskDialog({
           />
         </Field>
 
+        <Field label="Responsables" htmlFor="assignees" error={state.errors?.assigneeIds}>
+          <AssigneePicker members={members} defaultSelected={values.assigneeIds ?? []} />
+        </Field>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Proyecto" htmlFor="projectId" error={state.errors?.projectId}>
             <Select id="projectId" name="projectId" defaultValue={values.projectId} required>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.key} · {project.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Field label="Responsable" htmlFor="assigneeId" error={state.errors?.assigneeId}>
-            <Select id="assigneeId" name="assigneeId" defaultValue={values.assigneeId ?? ''}>
-              <option value="">Sin asignar</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
                 </option>
               ))}
             </Select>

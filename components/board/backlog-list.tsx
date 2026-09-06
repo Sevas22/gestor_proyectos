@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useOptimistic, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowUp, GripVertical, MessageSquareText, Plus } from 'lucide-react'
+import { ArrowUp, GripVertical, MessageSquareText, Paperclip, Plus } from 'lucide-react'
 
 import { moveTaskAction, promoteFromBacklogAction } from '@/app/actions/tasks'
 import { can, type Permission } from '@/lib/permissions'
@@ -15,7 +15,8 @@ import {
   plural,
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { Avatar, Badge, Card, EmptyState, FormMessage } from '@/components/ui/primitives'
+import { Badge, Card, EmptyState, FormMessage } from '@/components/ui/primitives'
+import { AssigneeStack } from '@/components/board/assignee-stack'
 import { SubmitButton } from '@/components/ui/submit-button'
 import type { BoardTask } from '@/components/board/kanban-board'
 
@@ -189,6 +190,12 @@ export function BacklogList({
                       {task._count.comments}
                     </span>
                   )}
+                  {task._count.attachments > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Paperclip className="size-2.5" />
+                      {task._count.attachments}
+                    </span>
+                  )}
                   {task.dueDate && (
                     <span className={cn(late && 'font-semibold text-destructive')}>
                       {formatShortDate(task.dueDate)}
@@ -201,13 +208,7 @@ export function BacklogList({
                 {PRIORITY_LABELS[task.priority]}
               </Badge>
 
-              {task.assignee ? (
-                <Avatar name={task.assignee.name} seed={task.assignee.avatarSeed} size="sm" />
-              ) : (
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-[9px] text-muted-foreground">
-                  ?
-                </span>
-              )}
+              <AssigneeStack assignees={task.assignees} />
 
               {canMove && <PromoteButton taskId={task.id} onDone={() => router.refresh()} />}
             </li>

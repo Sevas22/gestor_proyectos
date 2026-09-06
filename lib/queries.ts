@@ -20,10 +20,11 @@ const taskCard = {
   dueDate: true,
   updatedAt: true,
   projectId: true,
-  assigneeId: true,
   project: { select: { id: true, key: true, name: true, colorSeed: true } },
-  assignee: { select: { id: true, name: true, avatarSeed: true } },
-  _count: { select: { comments: true } },
+  assignees: { select: { id: true, name: true, avatarSeed: true }, orderBy: { name: 'asc' } },
+  // Nunca `attachments: true`: eso traería el contenido binario de cada archivo.
+  // Solo hace falta el recuento para pintar el clip en la tarjeta.
+  _count: { select: { comments: true, attachments: true } },
 } as const
 
 export type TaskCard = Awaited<ReturnType<typeof getProjectTasks>>[number]
@@ -91,7 +92,7 @@ export const getProjects = cache(async (orgId: string) => {
       colorSeed: true,
       dueDate: true,
       createdAt: true,
-      tasks: { select: { status: true, assigneeId: true } },
+      tasks: { select: { status: true, assignees: { select: { id: true } } } },
     },
   })
 
@@ -109,7 +110,7 @@ export const getProjects = cache(async (orgId: string) => {
       doneCount: done,
       backlogCount: tasks.length - board.length,
       progress: board.length === 0 ? 0 : Math.round((done / board.length) * 100),
-      memberCount: new Set(board.map((t) => t.assigneeId).filter(Boolean)).size,
+      memberCount: new Set(board.flatMap((t) => t.assignees.map((a) => a.id))).size,
     }
   })
 })
@@ -167,7 +168,7 @@ export const getOrgTasks = cache(
     return prisma.task.findMany({
       where: {
         project: { orgId },
-        ...(filters.assigneeId ? { assigneeId: filters.assigneeId } : {}),
+        ...(filters.assigneeId ? { assignees: { some: { id: filters.assigneeId } } } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.projectId ? { projectId: filters.projectId } : {}),
       },
@@ -193,6 +194,19 @@ export const getTaskDetail = cache(async (taskId: string, orgId: string) => {
           createdAt: true,
           authorId: true,
           author: { select: { id: true, name: true, avatarSeed: true } },
+        },
+      },
+      // Sin `data`: el contenido solo se lee en la ruta de descarga.
+      attachments: {
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          filename: true,
+          mimeType: true,
+          size: true,
+          createdAt: true,
+          uploadedById: true,
+          uploadedBy: { select: { id: true, name: true, avatarSeed: true } },
         },
       },
     },
@@ -233,7 +247,11 @@ export const getDashboardStats = cache(async (orgId: string, userId: string) => 
         },
       }),
       prisma.task.count({
-        where: { project: { orgId }, assigneeId: userId, status: { notIn: ['DONE', 'BACKLOG'] } },
+        where: {
+          project: { orgId },
+          assignees: { some: { id: userId } },
+          status: { notIn: ['DONE', 'BACKLOG'] },
+        },
       }),
       prisma.project.count({ where: { orgId, status: 'ACTIVE' } }),
       prisma.membership.count({ where: { orgId, status: 'ACTIVE' } }),
