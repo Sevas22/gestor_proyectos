@@ -92,7 +92,7 @@ export function RoleDialog({
         title={editing ? `Editar «${role!.name}»` : 'Nuevo rol'}
         description={
           role?.isSystem
-            ? 'Es el rol administrador de la organización. Puedes cambiarle el nombre y afinar permisos, pero no dejarlo sin gestionar roles ni miembros.'
+            ? 'Es el rol administrador de la organización: lleva todos los permisos, también los de las funciones que se añadan más adelante. Puedes cambiarle el nombre, la descripción y el color.'
             : 'Marca lo que este rol puede hacer. Los cambios afectan de inmediato a quien lo tenga.'
         }
       >
@@ -154,7 +154,7 @@ export function RoleDialog({
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-xs font-semibold">Permisos</span>
               <span className="tabular text-[11px] text-muted-foreground">
-                {selected.size} marcados
+                {role?.isSystem ? 'todos, y no se pueden quitar' : `${selected.size} marcados`}
               </span>
             </div>
 
@@ -167,14 +167,18 @@ export function RoleDialog({
 
                 <div className="flex flex-col gap-2.5">
                   {group.items.map((item) => {
-                    const puede = grantable.includes(item.key)
+                    // En el rol de sistema no hay nada que elegir: los lleva
+                    // todos y no se pueden quitar.
+                    const bloqueadoPorSistema = Boolean(role?.isSystem)
+                    const puede = !bloqueadoPorSistema && grantable.includes(item.key)
                     const sensible = SENSITIVE_PERMISSIONS.includes(item.key)
                     return (
                       <label
                         key={item.key}
                         className={cn(
                           'flex cursor-pointer items-start gap-2.5',
-                          !puede && 'cursor-not-allowed opacity-50',
+                          !puede && 'cursor-not-allowed',
+                          !puede && !bloqueadoPorSistema && 'opacity-50',
                         )}
                       >
                         <input
@@ -182,7 +186,7 @@ export function RoleDialog({
                           name="permissions"
                           value={item.key}
                           disabled={!puede}
-                          checked={selected.has(item.key)}
+                          checked={bloqueadoPorSistema || selected.has(item.key)}
                           onChange={(event) => toggle(item.key, event.target.checked)}
                           className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
                         />
@@ -197,9 +201,11 @@ export function RoleDialog({
                             )}
                           </span>
                           <span className="block text-[11px] leading-4 text-muted-foreground">
-                            {puede
+                            {bloqueadoPorSistema
                               ? item.description
-                              : 'Tu rol no tiene este permiso, así que no puedes concederlo.'}
+                              : puede
+                                ? item.description
+                                : 'Tu rol no tiene este permiso, así que no puedes concederlo.'}
                           </span>
                         </span>
                       </label>

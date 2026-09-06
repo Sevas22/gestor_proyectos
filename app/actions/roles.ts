@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { requirePermission, PermissionError } from '@/lib/dal'
-import { LOCKOUT_PERMISSIONS, permissionsBeyond, type Permission } from '@/lib/permissions'
+import { ALL_PERMISSIONS, LOCKOUT_PERMISSIONS, permissionsBeyond, type Permission } from '@/lib/permissions'
 import { roleSchema, fieldErrors, type ActionState } from '@/lib/validation'
 
 function toState(error: unknown): ActionState {
@@ -115,20 +115,15 @@ export async function updateRoleAction(_prev: ActionState, formData: FormData): 
       }
     }
 
-    if (role.isSystem) {
-      const faltan = LOCKOUT_PERMISSIONS.filter((p) => !parsed.data.permissions.includes(p))
-      if (faltan.length > 0) {
-        return {
-          ok: false,
-          message:
-            'Este es el rol administrador de la organización: no puede quedarse sin gestionar roles ni miembros. Puedes cambiarle el nombre y el resto de permisos.',
-        }
-      }
-    }
+    // El rol de sistema conserva todos los permisos pase lo que pase. Se le
+    // puede cambiar el nombre, la descripción y el color, pero no recortarlo:
+    // es el que garantiza que la organización siempre tenga a alguien capaz de
+    // usar cualquier función, incluidas las que se añadan más adelante.
+    const permissions = role.isSystem ? [...ALL_PERMISSIONS] : parsed.data.permissions
 
-    await assertNoLockout(viewer.orgId, { roleId: id, permissions: parsed.data.permissions })
+    await assertNoLockout(viewer.orgId, { roleId: id, permissions })
 
-    await prisma.teamRole.update({ where: { id }, data: parsed.data })
+    await prisma.teamRole.update({ where: { id }, data: { ...parsed.data, permissions } })
   } catch (error) {
     return toState(error)
   }

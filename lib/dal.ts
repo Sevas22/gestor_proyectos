@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { decryptSession } from '@/lib/session'
 import { readSessionCookie } from '@/lib/session-cookie'
-import { can, isPermission, type Permission } from '@/lib/permissions'
+import { ALL_PERMISSIONS, can, isPermission, type Permission } from '@/lib/permissions'
 
 /// Capa de acceso a datos.
 ///
@@ -65,7 +65,7 @@ export const resolveViewer = cache(async (): Promise<ViewerResult> => {
     select: {
       status: true,
       joinedAt: true,
-      role: { select: { id: true, name: true, colorSeed: true, permissions: true } },
+      role: { select: { id: true, name: true, colorSeed: true, permissions: true, isSystem: true } },
       org: { select: { id: true, name: true, slug: true } },
       user: { select: { id: true, name: true, email: true, avatarSeed: true } },
     },
@@ -91,9 +91,17 @@ export const resolveViewer = cache(async (): Promise<ViewerResult> => {
       roleId: membership.role.id,
       roleName: membership.role.name,
       roleColorSeed: membership.role.colorSeed,
-      // Se filtra contra el catálogo: una clave que quedó en la base tras
-      // retirarse del producto no debe colarse como permiso válido.
-      permissions: membership.role.permissions.filter(isPermission),
+      // El rol de sistema lleva todos los permisos por definición, se calcule
+      // cuando se calcule su fila. Sin esto, añadir una función nueva al
+      // producto deja al administrador de una organización antigua sin acceso a
+      // ella hasta que alguien se acuerde de migrar los datos — que es
+      // exactamente lo que pasó con los adjuntos.
+      //
+      // Para el resto se filtra contra el catálogo: una clave que quedó en la
+      // base tras retirarse del producto no debe colarse como permiso válido.
+      permissions: membership.role.isSystem
+        ? [...ALL_PERMISSIONS]
+        : membership.role.permissions.filter(isPermission),
       orgId: membership.org.id,
       orgName: membership.org.name,
       orgSlug: membership.org.slug,
