@@ -48,6 +48,25 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Escribe tu contraseña.'),
 })
 
+/// Cambio de la propia contraseña. Se pide la actual aunque haya sesión: una
+/// sesión abierta en un ordenador ajeno no debería bastar para quedarse con la
+/// cuenta.
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Escribe tu contraseña actual.'),
+    password: credentials.password,
+    confirmPassword: credentials.confirmPassword,
+  })
+  .refine(passwordsMatch, mismatch)
+  .refine((data) => data.password !== data.currentPassword, {
+    message: 'La nueva contraseña tiene que ser distinta de la actual.',
+    path: ['password'],
+  })
+
+export const resetPasswordSchema = z.object({
+  membershipId: z.string().min(1),
+})
+
 export const projectSchema = z.object({
   name: trimmed(80).min(2, 'El proyecto necesita un nombre.'),
   key: trimmed(8)
@@ -198,6 +217,10 @@ export type ActionState = {
   /// con ella. Lo usa el diálogo de tarea para adjuntar archivos a algo que
   /// hasta ese momento no existía.
   createdId?: string
+  /// Contraseña temporal recién generada. Va aparte del mensaje para que la
+  /// interfaz la pueda enseñar en grande y copiar, en vez de enterrada en una
+  /// frase. Vive solo en la respuesta: no se guarda en ningún sitio en claro.
+  temporaryPassword?: string
 }
 
 export const EMPTY_STATE: ActionState = { ok: false }

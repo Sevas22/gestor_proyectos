@@ -104,6 +104,10 @@ botón de crear ni podrá arrastrar tarjetas.
   la línea de tiempo: cada historia es una barra de su fecha de inicio a la de
   fin, en escala de días, semanas o meses. Las tareas cuelgan de una historia,
   así que la barra enseña también cuánto va hecho.
+- **Contraseñas olvidadas.** Sin servidor de correo, quien administra genera una
+  contraseña temporal desde *Equipo* y se la entrega a mano. Cada persona cambia
+  la suya en *Ajustes*, y al hacerlo se cierra su sesión en los demás
+  dispositivos.
 - **Roles propios.** Cada equipo crea los suyos con el nombre que quiera y marca
   sus permisos uno a uno. El servidor los aplica de verdad.
 - **Actividad.** Cada cambio deja un registro con quién, qué y cuándo.
@@ -281,6 +285,49 @@ sin cookie, cookie huérfana, pendiente de aprobación, y sesión buena. La hué
 [`/logout`](app/logout/route.ts), un route handler que sí puede borrarla — un
 componente de servidor no puede escribir cookies.
 
+### Restablecer una contraseña es poder entrar como esa persona
+
+Quien restablece conoce la contraseña temporal, así que el botón de *Equipo*
+tiene tres reglas, todas en el servidor
+([`resetMemberPasswordAction`](app/actions/members.ts)):
+
+1. **Nunca a uno mismo.** La propia se cambia en *Ajustes*, que pide la actual:
+   una sesión abierta en un ordenador ajeno no debería bastar para quedarse con
+   la cuenta.
+2. **Nunca a quien tenga permisos que tú no tienes.** Si no, restablecerle la
+   contraseña a un administrador sería la forma de hacerse administrador.
+3. **Nunca a quien pertenezca también a otro equipo.** El alta de miembros añade
+   directamente una cuenta que ya existe, sin pedirle permiso. Sin esta regla,
+   el administrador de cualquier equipo podría añadir a alguien, restablecerle
+   la contraseña y entrar con ella en los equipos de esa persona.
+
+La contraseña temporal sale de `crypto.randomInt` —no de `Math.random`, cuyos
+valores se pueden predecir— y se enseña una sola vez. Cada restablecimiento
+queda en la actividad del equipo con quién lo hizo. El permiso no lo tiene de
+partida ningún rol salvo el Administrador.
+
+### Cambiar la contraseña cierra las demás sesiones
+
+La sesión es un JWT: vale hasta que caduca, y no hay una lista de sesiones que
+borrar. Para poder invalidarlas, cada usuario tiene un `sessionVersion` que
+viaja dentro de la cookie. Cambiar o restablecer la contraseña lo incrementa, y
+[`resolveViewer`](lib/dal.ts) trata una cookie con una versión distinta igual
+que una huérfana: la manda a `/logout`. Quien cambia su propia contraseña
+recibe una cookie nueva y sigue dentro; en cualquier otro sitio, fuera.
+
+Las cookies emitidas antes de que existiera el campo no lo traen y se leen como
+0, que es la versión con la que nace todo usuario: desplegar esto no echó a
+nadie.
+
+### Los permisos se comparan siempre ya resueltos
+
+Una comprobación que se repite —«no puedes repartir lo que no tienes»— tiene
+que usar [`effectivePermissions`](lib/permissions.ts) y no la lista guardada en
+el rol. El Administrador tiene todos los permisos por definición, pero su lista
+guardada es de cuando se creó: no incluye los que se añadieron después. Si se
+comparase esa lista, quien tuviera todos los permisos antiguos vería que el
+Administrador no le supera, podría asignárselo, y recibiría con él los nuevos.
+
 Concretamente:
 
 - Las contraseñas se guardan con **bcrypt** (coste 12). Nunca en claro.
@@ -344,6 +391,15 @@ Neon de producción (no solo compilando):
 - **Hidratación limpia:** la consola del build de producción no da un solo error
   de React al cargar una página con el panel de detalle abierto. Antes daba
   varios (#418 y #441) — ver más abajo.
+- **Contraseñas y sesiones:** una cookie emitida antes del cambio, sin versión,
+  se sigue aceptando como versión 0; una nueva conserva la suya; una versión que
+  llega como texto no se cuela como número, y una firma manipulada se sigue
+  rechazando. 5000 contraseñas temporales generadas: todas con el formato,
+  ninguna repetida, sin caracteres ambiguos y usando el alfabeto entero. Tras
+  aplicar la migración a Neon, los 20 usuarios quedaron en la versión 0 y la base
+  coincide con el esquema. **No probado en el navegador:** el recorrido completo
+  de restablecer y volver a entrar, porque exige iniciar sesión con una
+  contraseña real.
 - **Sobre el pooler de Neon:** las transacciones interactivas de Prisma
   (`$transaction`, que usa la creación de tareas para numerarlas sin colisiones)
   funcionan sobre la cadena con `-pooler`. No hace falta añadir `pgbouncer=true`.
@@ -436,7 +492,10 @@ Cosas que no están y que serían el siguiente paso natural:
 - **Invitaciones por correo.** Ahora, al añadir a alguien que no tiene cuenta, se
   crea con una contraseña temporal que se muestra una sola vez para entregarla a
   mano. Con un servidor de correo esto sería un enlace de invitación.
-- **Cambio de contraseña** desde ajustes, y recuperación por correo.
+- **Recuperación por correo.** Hoy restablecer una contraseña pasa por un
+  administrador. Con un servidor de correo, la propia persona pediría un enlace.
+- **Obligar a cambiar la temporal.** Ahora se le pide a la persona que la cambie
+  en *Ajustes*, pero nada le impide seguir usándola.
 - **Sprints y registro de horas.** El modelo de datos los admitiría sin
   romper nada.
 - **Permisos por proyecto.** Hoy un rol vale para toda la organización. Poder

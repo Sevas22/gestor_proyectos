@@ -13,6 +13,9 @@ export type SessionPayload = {
   userId: string
   /// Organización activa. Va en la sesión para no consultarla en cada request.
   orgId: string
+  /// Copia de `User.sessionVersion` en el momento de entrar. Si la de la base
+  /// es distinta, la contraseña cambió después y esta sesión ya no vale.
+  sessionVersion: number
 }
 
 function secretKey() {
@@ -40,7 +43,14 @@ export async function decryptSession(token?: string): Promise<SessionPayload | n
   try {
     const { payload } = await jwtVerify(token, secretKey(), { algorithms: ['HS256'] })
     if (typeof payload.userId !== 'string' || typeof payload.orgId !== 'string') return null
-    return { userId: payload.userId, orgId: payload.orgId }
+    return {
+      userId: payload.userId,
+      orgId: payload.orgId,
+      // Las cookies emitidas antes de que existiera el campo no lo traen. Se
+      // leen como 0, que es la versión con la que nace todo usuario: así
+      // desplegar esto no echa a nadie, y el primer cambio de contraseña sí.
+      sessionVersion: typeof payload.sessionVersion === 'number' ? payload.sessionVersion : 0,
+    }
   } catch {
     return null
   }

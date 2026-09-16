@@ -4,11 +4,17 @@ import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 
 import { prisma } from '@/lib/prisma'
+import { requireViewer } from '@/lib/dal'
+import { BCRYPT_COST } from '@/lib/passwords'
 import { createSession, destroySession } from '@/lib/session-cookie'
-import { loginSchema, registerSchema, fieldErrors, type ActionState } from '@/lib/validation'
+import {
+  changePasswordSchema,
+  loginSchema,
+  registerSchema,
+  fieldErrors,
+  type ActionState,
+} from '@/lib/validation'
 import { DEFAULT_ROLES, DEFAULT_JOIN_ROLE } from '@/lib/permissions'
-
-const BCRYPT_COST = 12
 
 /// Convierte "Equipo de Diseño" en "equipo-de-diseno".
 function slugify(value: string) {
@@ -142,7 +148,8 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     })
   }
 
-  await createSession(session)
+  // Cuenta recién creada: su versión de sesión es la inicial.
+  await createSession({ ...session, sessionVersion: 0 })
   // redirect lanza una excepción de control interna de Next: va fuera de
   // cualquier try/catch para que no se la trague.
   // Quien pidió entrar acaba en la sala de espera; quien creó equipo, en el panel.
@@ -161,6 +168,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     select: {
       id: true,
       passwordHash: true,
+      sessionVersion: true,
       // Se traen todas y se elige en código. Ordenar por `status` funcionaría,
       // pero Prisma ordena los enums por su orden de declaración —PENDING antes
       // que ACTIVE—, así que el criterio se rompería en silencio si alguien
@@ -190,8 +198,63 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     return { ok: false, message: 'Tu cuenta no pertenece a ninguna organización. Pide que te inviten.' }
   }
 
-  await createSession({ userId: user.id, orgId: membership.orgId })
+  await createSession({
+    userId: user.id,
+    orgId: membership.orgId,
+    sessionVersion: user.sessionVersion,
+  })
   redirect(membership.status === 'ACTIVE' ? '/dashboard' : '/pendiente')
+}
+
+/// Cambio de la propia contraseña, desde Ajustes.
+///
+/// Incrementa la versión de sesión, así que se cierra la sesión en todos los
+/// demás sitios donde estuviera abierta —si alguien más conocía la contraseña,
+/// deja de estar dentro—. En este dispositivo no: se vuelve a emitir la cookie
+/// con la versión nueva para no echar a quien acaba de cambiarla.
+export async function changePasswordAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = changePasswordSchema.safeParse({
+    currentPassword: formData.get('currentPassword'),
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirmPassword'),
+  })
+  if (!parsed.success) return fieldErrors(parsed.error)
+
+  const viewer = await requireViewer()
+
+  const user = await prisma.user.findUnique({
+    where: { id: viewer.id },
+    select: { passwordHash: true },
+  })
+  if (!user) return { ok: false, message: 'No se encontró tu cuenta.' }
+
+  const matches = await bcrypt.compare(parsed.data.currentPassword, user.passwordHash)
+  if (!matches) {
+    return { ok: false, errors: { currentPassword: ['La contraseña actual no es correcta.'] } }
+  }
+
+  const actualizado = await prisma.user.update({
+    where: { id: viewer.id },
+    data: {
+      passwordHash: await bcrypt.hash(parsed.data.password, BCRYPT_COST),
+      sessionVersion: { increment: 1 },
+    },
+    select: { sessionVersion: true },
+  })
+
+  await createSession({
+    userId: viewer.id,
+    orgId: viewer.orgId,
+    sessionVersion: actualizado.sessionVersion,
+  })
+
+  return {
+    ok: true,
+    message: 'Contraseña cambiada. Si tenías la sesión abierta en otro sitio, allí se ha cerrado.',
+  }
 }
 
 export async function logoutAction() {

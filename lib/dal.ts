@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { decryptSession } from '@/lib/session'
 import { readSessionCookie } from '@/lib/session-cookie'
-import { ALL_PERMISSIONS, can, isPermission, type Permission } from '@/lib/permissions'
+import { can, effectivePermissions, type Permission } from '@/lib/permissions'
 
 /// Capa de acceso a datos.
 ///
@@ -37,6 +37,7 @@ export type Viewer = {
 ///
 ///   anonymous  sin cookie                    → /login
 ///   stale      firma buena, fila ausente     → /logout, que borra la cookie
+///              o contraseña cambiada después
 ///   pending    fila existe, sin aprobar      → /pendiente
 ///   ok         acceso completo
 ///
@@ -67,13 +68,18 @@ export const resolveViewer = cache(async (): Promise<ViewerResult> => {
       joinedAt: true,
       role: { select: { id: true, name: true, colorSeed: true, permissions: true, isSystem: true } },
       org: { select: { id: true, name: true, slug: true } },
-      user: { select: { id: true, name: true, email: true, avatarSeed: true } },
+      user: { select: { id: true, name: true, email: true, avatarSeed: true, sessionVersion: true } },
     },
   })
 
   // Firma buena, fila ausente: le sacaron del equipo, se borró la organización
   // o se reinició la base de datos con la sesión abierta.
   if (!membership) return { status: 'stale' }
+
+  // Firma buena, versión vieja: la contraseña se cambió después de entrar.
+  // Se trata igual que una fila ausente, porque lo es en lo que importa —esta
+  // cookie ya no representa a nadie con acceso— y /logout la borra.
+  if (membership.user.sessionVersion !== session.sessionVersion) return { status: 'stale' }
 
   // Una membresía pendiente tiene rol asignado en la fila, pero ese rol es solo
   // la propuesta inicial: no autoriza nada hasta que un administrador aprueba.
@@ -96,12 +102,7 @@ export const resolveViewer = cache(async (): Promise<ViewerResult> => {
       // producto deja al administrador de una organización antigua sin acceso a
       // ella hasta que alguien se acuerde de migrar los datos — que es
       // exactamente lo que pasó con los adjuntos.
-      //
-      // Para el resto se filtra contra el catálogo: una clave que quedó en la
-      // base tras retirarse del producto no debe colarse como permiso válido.
-      permissions: membership.role.isSystem
-        ? [...ALL_PERMISSIONS]
-        : membership.role.permissions.filter(isPermission),
+      permissions: effectivePermissions(membership.role),
       orgId: membership.org.id,
       orgName: membership.org.name,
       orgSlug: membership.org.slug,

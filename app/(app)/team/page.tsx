@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Clock3, ShieldCheck, Users } from 'lucide-react'
 
 import { requireViewer } from '@/lib/dal'
-import { can, permissionsBeyond, summarizePermissions } from '@/lib/permissions'
+import { can, effectivePermissions, permissionsBeyond, summarizePermissions } from '@/lib/permissions'
 import { getOrgMembers, getOrgRoles, getPendingMembers, getWorkload } from '@/lib/queries'
 import { formatDate, plural, roleColor } from '@/lib/format'
 import { PageHeader } from '@/components/shell/app-shell'
@@ -28,11 +28,12 @@ export default async function TeamPage() {
   // Solo se ofrecen los roles que quien mira podría conceder: repartir permisos
   // que uno no tiene sería escalar privilegios, y el servidor lo rechazaría.
   const asignables = roles
-    .filter((role) => permissionsBeyond(role.permissions, viewer.permissions).length === 0)
+    .filter((role) => permissionsBeyond(effectivePermissions(role), viewer.permissions).length === 0)
     .map((role) => ({ id: role.id, name: role.name, colorSeed: role.colorSeed, description: role.description }))
 
   const canInvite = can(viewer.permissions, 'member:invite')
   const canManage = can(viewer.permissions, 'member:update_role')
+  const canResetPasswords = can(viewer.permissions, 'member:reset_password')
   const workloadById = new Map(workload.map((entry) => [entry.id, entry]))
   const maxOpen = Math.max(...workload.map((entry) => entry.open), 1)
 
@@ -104,6 +105,15 @@ export default async function TeamPage() {
                 workload={workloadById.get(member.user.id) ?? { open: 0, done: 0, total: 0 }}
                 isSelf={member.user.id === viewer.id}
                 canManage={canManage}
+                // Mismas reglas que aplica el servidor, para no ofrecer un botón
+                // que acabaría en un rechazo. La de pertenecer a otro equipo
+                // solo la comprueba el servidor: aquí costaría una consulta por
+                // fila para un caso raro, y el rechazo ya explica el motivo.
+                canResetPassword={
+                  canResetPasswords &&
+                  member.user.id !== viewer.id &&
+                  permissionsBeyond(effectivePermissions(member.role), viewer.permissions).length === 0
+                }
                 maxOpen={maxOpen}
               />
             ))}

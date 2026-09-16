@@ -10,6 +10,7 @@ import { formatDate, plural, roleColor } from '@/lib/format'
 import { PageHeader } from '@/components/shell/app-shell'
 import { Badge, Card, CardHeader } from '@/components/ui/primitives'
 import { OrgSettingsForm } from '@/components/settings/org-settings-form'
+import { ChangePasswordForm } from '@/components/settings/change-password-form'
 
 export const metadata: Metadata = { title: 'Ajustes' }
 
@@ -104,6 +105,16 @@ export default async function SettingsPage() {
               </dd>
             </div>
           </dl>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Contraseña"
+            subtitle="Al cambiarla se cierra la sesión en tus otros dispositivos"
+          />
+          <div className="p-5">
+            <ChangePasswordForm />
+          </div>
         </Card>
 
         <Card>

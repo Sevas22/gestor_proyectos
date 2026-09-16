@@ -11,6 +11,7 @@ import { Avatar, Badge, FormMessage, Progress } from '@/components/ui/primitives
 import { SubmitButton } from '@/components/ui/submit-button'
 import { Dialog } from '@/components/ui/dialog'
 import { RoleSelect, type RoleOption } from '@/components/team/role-select'
+import { ResetPasswordButton } from '@/components/team/reset-password-dialog'
 
 export function MemberRow({
   membership,
@@ -18,6 +19,7 @@ export function MemberRow({
   workload,
   isSelf,
   canManage,
+  canResetPassword,
   maxOpen,
 }: {
   membership: {
@@ -30,6 +32,9 @@ export function MemberRow({
   workload: { open: number; done: number; total: number }
   isSelf: boolean
   canManage: boolean
+  /// Ya resuelto por la página: tener el permiso no basta, además la persona
+  /// no puede ser uno mismo ni tener permisos que quien mira no tenga.
+  canResetPassword: boolean
   maxOpen: number
 }) {
   const router = useRouter()
@@ -68,23 +73,29 @@ export function MemberRow({
           </div>
         </div>
 
-        {canManage ? (
+        {canManage || canResetPassword ? (
           <div className="flex items-center gap-2">
-            <form action={roleAction}>
-              <input type="hidden" name="membershipId" value={membership.id} />
-              <RoleSelect
-                name="roleId"
-                roles={opciones}
-                defaultValue={membership.role.id}
-                aria-label={`Rol de ${membership.user.name}`}
-                className="w-auto py-1.5 text-xs"
-                // Cambiar el desplegable envía el formulario: un botón
-                // "Guardar" por fila sería ruido en una lista larga.
-                onChange={(event) => event.currentTarget.form?.requestSubmit()}
-              />
-            </form>
+            {canManage && (
+              <form action={roleAction}>
+                <input type="hidden" name="membershipId" value={membership.id} />
+                <RoleSelect
+                  name="roleId"
+                  roles={opciones}
+                  defaultValue={membership.role.id}
+                  aria-label={`Rol de ${membership.user.name}`}
+                  className="w-auto py-1.5 text-xs"
+                  // Cambiar el desplegable envía el formulario: un botón
+                  // "Guardar" por fila sería ruido en una lista larga.
+                  onChange={(event) => event.currentTarget.form?.requestSubmit()}
+                />
+              </form>
+            )}
 
-            {!isSelf && (
+            {canResetPassword && (
+              <ResetPasswordButton membershipId={membership.id} name={membership.user.name} />
+            )}
+
+            {canManage && !isSelf && (
               <button
                 type="button"
                 onClick={() => setConfirmOpen(true)}

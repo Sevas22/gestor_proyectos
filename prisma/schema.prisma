@@ -78,6 +78,7 @@ enum ActivityType {
   MEMBER_JOINED
   MEMBER_ROLE_CHANGED
   MEMBER_REMOVED
+  MEMBER_PASSWORD_RESET
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,10 @@ model User {
   email        String   @unique
   name         String
   passwordHash String
+  /// Va dentro de la cookie de sesión. Cambiar la contraseña lo incrementa, y
+  /// desde ese momento las cookies firmadas con el valor anterior dejan de
+  /// valer: restablecer una contraseña echa a quien estuviera dentro.
+  sessionVersion Int    @default(0)
   /// Índice de la paleta de avatares (lib/format.ts). Da un color estable por persona.
   avatarSeed   Int      @default(0)
   createdAt    DateTime @default(now())

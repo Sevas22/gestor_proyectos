@@ -24,6 +24,7 @@ export type Permission =
   | 'member:approve'
   | 'member:update_role'
   | 'member:remove'
+  | 'member:reset_password'
   | 'role:manage'
   | 'org:update'
 
@@ -152,6 +153,12 @@ export const PERMISSION_CATALOG: {
         label: 'Retirar miembros',
         description: 'Quitar a alguien de la organización.',
       },
+      {
+        key: 'member:reset_password',
+        label: 'Restablecer contraseñas',
+        description:
+          'Dar una contraseña temporal a quien olvidó la suya. Solo a quien no tenga más permisos que tú.',
+      },
     ],
   },
   {
@@ -180,6 +187,24 @@ const PERMISSION_SET = new Set<string>(ALL_PERMISSIONS)
 
 export function isPermission(value: string): value is Permission {
   return PERMISSION_SET.has(value)
+}
+
+/// Permisos que un rol concede de verdad.
+///
+/// El rol de sistema los tiene todos por definición, aunque la lista guardada
+/// en su fila sea de antes de que existiera alguno: así una función nueva no
+/// deja fuera al administrador. Para el resto se filtra contra el catálogo, y
+/// una clave que se retiró del producto no cuenta.
+///
+/// Toda comparación entre permisos tiene que pasar por aquí, nunca por la lista
+/// guardada. Si no, al añadir un permiso se abre una escalada: quien tuviera
+/// todos los anteriores vería que la lista guardada del administrador no le
+/// supera, podría asignarse ese rol y recibiría con él el permiso nuevo.
+export function effectivePermissions(role: {
+  isSystem: boolean
+  permissions: readonly string[]
+}): Permission[] {
+  return role.isSystem ? [...ALL_PERMISSIONS] : role.permissions.filter(isPermission)
 }
 
 /// Comprueba un permiso contra la lista que trae el rol de quien actúa.
@@ -212,6 +237,9 @@ export const SENSITIVE_PERMISSIONS: readonly Permission[] = [
   'story:delete',
   'member:update_role',
   'member:remove',
+  // Quien restablece una contraseña conoce la temporal: puede entrar como esa
+  // persona hasta que la cambie.
+  'member:reset_password',
   'role:manage',
   'org:update',
   'project:delete',

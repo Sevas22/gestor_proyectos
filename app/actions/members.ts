@@ -5,18 +5,29 @@ import bcrypt from 'bcryptjs'
 
 import { prisma } from '@/lib/prisma'
 import { requirePermission, PermissionError } from '@/lib/dal'
-import { LOCKOUT_PERMISSIONS, permissionsBeyond } from '@/lib/permissions'
-import { memberInviteSchema, memberRoleSchema, orgSchema, fieldErrors, type ActionState } from '@/lib/validation'
+import { BCRYPT_COST, generateTemporaryPassword } from '@/lib/passwords'
+import { LOCKOUT_PERMISSIONS, effectivePermissions, permissionsBeyond } from '@/lib/permissions'
+import {
+  memberInviteSchema,
+  memberRoleSchema,
+  orgSchema,
+  resetPasswordSchema,
+  fieldErrors,
+  type ActionState,
+} from '@/lib/validation'
 
 /// Comprueba que el rol pertenece a la organización. Sin esto, un id de rol de
 /// otro equipo serviría para colar permisos ajenos.
+///
+/// Devuelve los permisos efectivos, no los guardados: son los que se comparan
+/// con los de quien asigna el rol.
 async function roleInOrg(roleId: string, orgId: string) {
   const role = await prisma.teamRole.findFirst({
     where: { id: roleId, orgId },
-    select: { id: true, name: true, permissions: true },
+    select: { id: true, name: true, permissions: true, isSystem: true },
   })
   if (!role) throw new Error('Ese rol no existe en tu organización.')
-  return role
+  return { id: role.id, name: role.name, permissions: effectivePermissions(role) }
 }
 
 /// Impide que el equipo se quede sin nadie capaz de gestionar roles y miembros.
@@ -32,11 +43,11 @@ async function assertKeepsAnAdmin(
 ) {
   const activos = await prisma.membership.findMany({
     where: { orgId, status: 'ACTIVE' },
-    select: { id: true, role: { select: { permissions: true } } },
+    select: { id: true, role: { select: { permissions: true, isSystem: true } } },
   })
 
   const quedaAlguien = activos.some((m) => {
-    const permisos = m.id === membershipId ? nextPermissions : m.role.permissions
+    const permisos = m.id === membershipId ? nextPermissions : effectivePermissions(m.role)
     return permisos !== null && LOCKOUT_PERMISSIONS.every((p) => permisos.includes(p))
   })
 
@@ -128,15 +139,14 @@ export async function inviteMemberAction(_prev: ActionState, formData: FormData)
       return { ok: true, message: `${existing.name} ya tenía cuenta y se añadió al equipo.` }
     }
 
-    // Contraseña temporal legible pero no adivinable.
-    const temporaryPassword = `${Math.random().toString(36).slice(2, 8)}-${Math.random().toString(36).slice(2, 8)}`
+    const temporaryPassword = generateTemporaryPassword()
     const name = email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
     const user = await prisma.user.create({
       data: {
         email,
         name,
-        passwordHash: await bcrypt.hash(temporaryPassword, 12),
+        passwordHash: await bcrypt.hash(temporaryPassword, BCRYPT_COST),
         avatarSeed: Math.floor(Math.random() * 8),
         memberships: { create: { orgId: viewer.orgId, roleId: role.id, status: 'ACTIVE' } },
       },
@@ -253,6 +263,96 @@ export async function removeMemberAction(_prev: ActionState, formData: FormData)
   revalidatePath('/team')
   revalidatePath('/dashboard')
   return { ok: true, message: 'Miembro retirado del equipo.' }
+}
+
+/// Restablece la contraseña de un miembro que la olvidó.
+///
+/// No hay servidor de correo, así que funciona como el alta: se genera una
+/// contraseña temporal que se devuelve una sola vez, y quien administra se la
+/// entrega a la persona. Tres salvaguardas, porque conocer la contraseña de
+/// alguien es poder entrar como esa persona:
+///
+///   1. Nunca a uno mismo. Para eso está Ajustes, que pide la contraseña actual.
+///   2. Nunca a quien tenga permisos que tú no tienes. Si no, restablecerle la
+///      contraseña a un administrador sería la forma de hacerse administrador.
+///   3. Nunca a quien pertenezca también a otro equipo. El alta añade cuentas
+///      que ya existen sin pedirles permiso, así que el administrador de
+///      cualquier equipo podría añadir a alguien y quedarse con su cuenta, y con
+///      ella con su acceso a equipos que no son el suyo.
+///
+/// Incrementa la versión de sesión: si alguien estaba dentro con la
+/// contraseña vieja, deja de estarlo.
+export async function resetMemberPasswordAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = resetPasswordSchema.safeParse({ membershipId: formData.get('membershipId') })
+  if (!parsed.success) return fieldErrors(parsed.error)
+
+  try {
+    const viewer = await requirePermission('member:reset_password')
+
+    const membership = await prisma.membership.findFirst({
+      where: { id: parsed.data.membershipId, orgId: viewer.orgId, status: 'ACTIVE' },
+      select: {
+        userId: true,
+        user: { select: { name: true } },
+        role: { select: { permissions: true, isSystem: true } },
+      },
+    })
+    if (!membership) return { ok: false, message: 'Ese miembro no existe en tu organización.' }
+
+    if (membership.userId === viewer.id) {
+      return {
+        ok: false,
+        message: 'Tu propia contraseña se cambia desde Ajustes, donde se pide la actual.',
+      }
+    }
+
+    if (permissionsBeyond(effectivePermissions(membership.role), viewer.permissions).length > 0) {
+      return {
+        ok: false,
+        message: `${membership.user.name} tiene permisos que tú no tienes, así que no puedes restablecer su contraseña.`,
+      }
+    }
+
+    const enOtrosEquipos = await prisma.membership.count({
+      where: { userId: membership.userId, orgId: { not: viewer.orgId } },
+    })
+    if (enOtrosEquipos > 0) {
+      return {
+        ok: false,
+        message: `${membership.user.name} también pertenece a otro equipo, así que su contraseña no se puede restablecer desde aquí.`,
+      }
+    }
+
+    const temporaryPassword = generateTemporaryPassword()
+
+    await prisma.user.update({
+      where: { id: membership.userId },
+      data: {
+        passwordHash: await bcrypt.hash(temporaryPassword, BCRYPT_COST),
+        sessionVersion: { increment: 1 },
+      },
+    })
+    await prisma.activity.create({
+      data: {
+        type: 'MEMBER_PASSWORD_RESET',
+        summary: `restableció la contraseña de ${membership.user.name}`,
+        actorId: viewer.id,
+        orgId: viewer.orgId,
+      },
+    })
+
+    revalidatePath('/dashboard')
+    return {
+      ok: true,
+      message: `Contraseña de ${membership.user.name} restablecida.`,
+      temporaryPassword,
+    }
+  } catch (error) {
+    return toState(error)
+  }
 }
 
 export async function updateOrgAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

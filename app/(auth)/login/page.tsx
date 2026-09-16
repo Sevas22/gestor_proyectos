@@ -26,8 +26,9 @@ export default async function LoginPage({
           role="status"
           className="mt-5 rounded-lg bg-amber-100 px-3 py-2.5 text-xs leading-5 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
         >
-          Tu sesión ya no es válida. Puede que te hayan retirado del equipo o que
-          la organización haya cambiado. Vuelve a entrar.
+          Tu sesión ya no es válida. Puede que se haya cambiado tu contraseña, que
+          te hayan retirado del equipo o que la organización haya cambiado. Vuelve
+          a entrar.
         </p>
       )}
 

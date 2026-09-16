@@ -40,7 +40,7 @@ export const getOrgMembers = cache(async (orgId: string) => {
     orderBy: [{ role: { colorSeed: 'asc' } }, { user: { name: 'asc' } }],
     select: {
       id: true,
-      role: { select: { id: true, name: true, colorSeed: true, permissions: true } },
+      role: { select: { id: true, name: true, colorSeed: true, permissions: true, isSystem: true } },
       joinedAt: true,
       user: { select: { id: true, name: true, email: true, avatarSeed: true } },
     },

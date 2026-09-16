@@ -5,7 +5,13 @@ import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { requirePermission, PermissionError } from '@/lib/dal'
-import { ALL_PERMISSIONS, LOCKOUT_PERMISSIONS, permissionsBeyond, type Permission } from '@/lib/permissions'
+import {
+  ALL_PERMISSIONS,
+  LOCKOUT_PERMISSIONS,
+  effectivePermissions,
+  permissionsBeyond,
+  type Permission,
+} from '@/lib/permissions'
 import { roleSchema, fieldErrors, type ActionState } from '@/lib/validation'
 
 function toState(error: unknown): ActionState {
@@ -104,9 +110,8 @@ export async function updateRoleAction(_prev: ActionState, formData: FormData): 
 
     // Solo se comprueban los permisos que se están añadiendo: quitar uno que no
     // tienes es inofensivo, y bloquearlo impediría recortar un rol heredado.
-    const añadidos = parsed.data.permissions.filter(
-      (p) => !(role.permissions as string[]).includes(p),
-    )
+    const actuales = effectivePermissions(role)
+    const añadidos = parsed.data.permissions.filter((p) => !actuales.includes(p))
     const negados = permissionsBeyond(añadidos, viewer.permissions)
     if (negados.length > 0) {
       return {
